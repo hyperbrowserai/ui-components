@@ -6,6 +6,24 @@ import { fileURLToPath } from 'node:url';
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const defaultEntry = '/tests/visual/harness/index.html';
 const port = Number.parseInt(process.env.PORT ?? '4173', 10);
+const defaultHost = process.env.HOST ?? 'localhost';
+
+function parseHostArg(argv) {
+  for (let index = 0; index < argv.length; index += 1) {
+    const value = argv[index];
+    if (value === '--host') {
+      return argv[index + 1];
+    }
+
+    if (value.startsWith('--host=')) {
+      return value.slice('--host='.length);
+    }
+  }
+
+  return null;
+}
+
+const host = parseHostArg(process.argv.slice(2)) ?? defaultHost;
 
 const mimeTypes = {
   '.css': 'text/css; charset=utf-8',
@@ -80,6 +98,6 @@ const server = createServer(async (req, res) => {
   res.end(body);
 });
 
-server.listen(port, () => {
-  console.log(`Visual harness running at http://localhost:${port}${defaultEntry}`);
+server.listen(port, host, () => {
+  console.log(`Visual harness running at http://${host}:${port}${defaultEntry}`);
 });

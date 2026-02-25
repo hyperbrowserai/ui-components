@@ -9,6 +9,9 @@ function HyperbrowserVncViewerDemo({ HyperbrowserVncViewer }) {
   const [connectUrl, setConnectUrl] = React.useState(DEFAULT_CONNECT_URL);
   const [connectAttempt, setConnectAttempt] = React.useState(0);
   const [disableFocusOnConnect, setDisableFocusOnConnect] = React.useState(false);
+  const [rewriteCmdAsCtrl, setRewriteCmdAsCtrl] = React.useState(false);
+  const [useComputerActionClipboard, setUseComputerActionClipboard] = React.useState(false);
+  const [debugClipboardFlow, setDebugClipboardFlow] = React.useState(false);
   const [viewOnly, setViewOnly] = React.useState(false);
 
   const applyConnectionValues = () => {
@@ -119,6 +122,57 @@ function HyperbrowserVncViewerDemo({ HyperbrowserVncViewer }) {
         'Disable focus on connect'
       ),
       React.createElement(
+        'label',
+        {
+          style: {
+            alignItems: 'center',
+            display: 'inline-flex',
+            gap: '0.5rem',
+            width: 'fit-content'
+          }
+        },
+        React.createElement('input', {
+          checked: rewriteCmdAsCtrl,
+          onChange: (event) => setRewriteCmdAsCtrl(event.target.checked),
+          type: 'checkbox'
+        }),
+        'Rewrite Cmd as Ctrl'
+      ),
+      React.createElement(
+        'label',
+        {
+          style: {
+            alignItems: 'center',
+            display: 'inline-flex',
+            gap: '0.5rem',
+            width: 'fit-content'
+          }
+        },
+        React.createElement('input', {
+          checked: useComputerActionClipboard,
+          onChange: (event) => setUseComputerActionClipboard(event.target.checked),
+          type: 'checkbox'
+        }),
+        'Use computer actions for copy/paste'
+      ),
+      React.createElement(
+        'label',
+        {
+          style: {
+            alignItems: 'center',
+            display: 'inline-flex',
+            gap: '0.5rem',
+            width: 'fit-content'
+          }
+        },
+        React.createElement('input', {
+          checked: debugClipboardFlow,
+          onChange: (event) => setDebugClipboardFlow(event.target.checked),
+          type: 'checkbox'
+        }),
+        'Debug clipboard flow'
+      ),
+      React.createElement(
         'p',
         { style: { color: '#334155', fontSize: '0.92rem', margin: 0 } },
         'Enter a real token and connect URL, then click Connect.'
@@ -129,6 +183,9 @@ function HyperbrowserVncViewerDemo({ HyperbrowserVncViewer }) {
       token,
       connectUrl,
       disableFocusOnConnect,
+      rewriteCmdAsCtrl,
+      useComputerActionClipboard,
+      debugClipboardFlow,
       viewOnly,
       height: 560
     })
