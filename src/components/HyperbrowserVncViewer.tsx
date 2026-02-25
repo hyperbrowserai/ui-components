@@ -25,6 +25,7 @@ type InternalRfbKeyboardController = {
 export type HyperbrowserVncViewerProps = {
   token: string;
   connectUrl: string;
+  disableFocusOnConnect?: boolean;
   viewOnly?: boolean;
   className?: string;
   style?: CSSProperties;
@@ -92,6 +93,7 @@ function buildVncWebSocketUrl(
 export function HyperbrowserVncViewer({
   token,
   connectUrl,
+  disableFocusOnConnect = false,
   viewOnly = false,
   className,
   style,
@@ -104,6 +106,7 @@ export function HyperbrowserVncViewer({
   const vncRef = useRef<VncScreenHandle | null>(null);
   const vncContainerRef = useRef<HTMLDivElement | null>(null);
   const [isVncInputActive, setIsVncInputActive] = useState(false);
+  const useManagedInputGuards = disableFocusOnConnect;
 
   const connection = useMemo(() => {
     try {
@@ -158,6 +161,10 @@ export function HyperbrowserVncViewer({
   }, [connection.error, onConnectionError]);
 
   useEffect(() => {
+    if (!useManagedInputGuards) {
+      return;
+    }
+
     const handleDocumentMouseDown = (event: MouseEvent) => {
       const container = vncContainerRef.current;
       if (!container) {
@@ -176,10 +183,10 @@ export function HyperbrowserVncViewer({
     return () => {
       document.removeEventListener('mousedown', handleDocumentMouseDown);
     };
-  }, [disableVncInput]);
+  }, [disableVncInput, useManagedInputGuards]);
 
   useEffect(() => {
-    if (!isVncInputActive) {
+    if (!useManagedInputGuards || !isVncInputActive) {
       return;
     }
 
@@ -231,11 +238,13 @@ export function HyperbrowserVncViewer({
       document.removeEventListener('keydown', forwardKeyboardEvent, true);
       document.removeEventListener('keyup', forwardKeyboardEvent, true);
     };
-  }, [isVncInputActive]);
+  }, [isVncInputActive, useManagedInputGuards]);
 
   useEffect(() => {
-    disableVncInput();
-  }, [disableVncInput, connection.webSocketUrl]);
+    if (useManagedInputGuards) {
+      disableVncInput();
+    }
+  }, [disableVncInput, connection.webSocketUrl, useManagedInputGuards]);
 
   const resolvedHeight = toCssLength(height);
 
@@ -274,8 +283,8 @@ export function HyperbrowserVncViewer({
     >
       <div
         ref={vncContainerRef}
-        onMouseDownCapture={activateVncInput}
-        onTouchStartCapture={activateVncInput}
+        onMouseDownCapture={useManagedInputGuards ? activateVncInput : undefined}
+        onTouchStartCapture={useManagedInputGuards ? activateVncInput : undefined}
       >
         <VncScreen
           key={webSocketUrl}
@@ -289,17 +298,21 @@ export function HyperbrowserVncViewer({
             }
           }}
           onConnect={() => {
-            disableVncInput();
-            // noVNC may claim focus shortly after connect; enforce off state.
-            window.setTimeout(() => {
+            if (useManagedInputGuards) {
               disableVncInput();
-            }, 0);
-            window.setTimeout(() => {
-              disableVncInput();
-            }, 120);
+              // noVNC may claim focus shortly after connect; enforce off state.
+              window.setTimeout(() => {
+                disableVncInput();
+              }, 0);
+              window.setTimeout(() => {
+                disableVncInput();
+              }, 120);
+            } else {
+              activateVncInput();
+            }
             onConnect?.();
           }}
-          focusOnClick={false}
+          focusOnClick={!useManagedInputGuards}
           scaleViewport
           resizeSession
           viewOnly={viewOnly}
