@@ -23,6 +23,12 @@ type InternalRfbKeyboardController = {
   _canvas?: HTMLCanvasElement | null;
 };
 
+type RewrittenKeyState = {
+  key: string;
+  code: string;
+  location: number;
+};
+
 export type HyperbrowserVncViewerProps = {
   token: string;
   connectUrl: string;
@@ -149,6 +155,7 @@ export function HyperbrowserVncViewer({
   const vncRef = useRef<VncScreenHandle | null>(null);
   const vncContainerRef = useRef<HTMLDivElement | null>(null);
   const rewrittenKeyCodesRef = useRef(new Set<string>());
+  const rewrittenPressedKeysRef = useRef(new Map<string, RewrittenKeyState>());
   const [isVncInputActive, setIsVncInputActive] = useState(false);
   const useManagedInputGuards = disableFocusOnConnect;
 
@@ -242,24 +249,48 @@ export function HyperbrowserVncViewer({
         return;
       }
 
-      const eventCode = event.code || `key:${event.key}`;
+      const eventCode = event.code || "";
+      const normalizedKey =
+        event.key.length === 1 ? event.key.toLowerCase() : event.key;
+      const codeSignature = eventCode ? `code:${eventCode}` : "";
+      const keySignature = `key:${normalizedKey}`;
       const rewrittenKeyCodes = rewrittenKeyCodesRef.current;
+      const rewrittenPressedKeys = rewrittenPressedKeysRef.current;
       const isMetaPhysicalKey =
         event.key === "Meta" ||
         eventCode === "MetaLeft" ||
         eventCode === "MetaRight";
-      const wasRewritten = rewrittenKeyCodes.has(eventCode);
+      const wasRewritten =
+        (codeSignature !== "" && rewrittenKeyCodes.has(codeSignature)) ||
+        rewrittenKeyCodes.has(keySignature);
       const shouldRewriteMeta =
         rewriteCmdAsCtrl &&
         (event.metaKey || isMetaPhysicalKey || wasRewritten);
 
       if (rewriteCmdAsCtrl && event.type === "keydown" && shouldRewriteMeta) {
-        rewrittenKeyCodes.add(eventCode);
+        if (codeSignature !== "") {
+          rewrittenKeyCodes.add(codeSignature);
+        }
+        rewrittenKeyCodes.add(keySignature);
+        if (!isMetaPhysicalKey && !event.repeat) {
+          const pressedKeySignature =
+            codeSignature !== "" ? codeSignature : keySignature;
+          rewrittenPressedKeys.set(pressedKeySignature, {
+            key: event.key,
+            code: event.code,
+            location: event.location,
+          });
+        }
       }
 
       const clearRewriteStateIfNeeded = () => {
         if (rewriteCmdAsCtrl && event.type === "keyup") {
-          rewrittenKeyCodes.delete(eventCode);
+          if (codeSignature !== "") {
+            rewrittenKeyCodes.delete(codeSignature);
+            rewrittenPressedKeys.delete(codeSignature);
+          }
+          rewrittenKeyCodes.delete(keySignature);
+          rewrittenPressedKeys.delete(keySignature);
         }
       };
 
@@ -304,14 +335,42 @@ export function HyperbrowserVncViewer({
 
       const rfb = vncRef.current?.rfb as InternalRfbKeyboardController | null;
       const canvas = rfb?._canvas ?? null;
+      const noVncKeyboardInputElement =
+        container?.querySelector<HTMLTextAreaElement>("#noVNC_keyboardinput") ??
+        null;
       const dispatchTarget: EventTarget | null = shouldForwardForManagedInput
         ? canvas
+        : shouldRewriteMeta
+        ? noVncKeyboardInputElement ?? canvas
         : isNoVncKeyboardInput
         ? target
         : canvas;
       if (!dispatchTarget) {
         clearRewriteStateIfNeeded();
         return;
+      }
+
+      if (
+        rewriteCmdAsCtrl &&
+        event.type === "keyup" &&
+        isMetaPhysicalKey &&
+        rewrittenPressedKeys.size > 0
+      ) {
+        for (const [, pressedKey] of rewrittenPressedKeys) {
+          const flushedKeyup = new KeyboardEvent("keyup", {
+            key: pressedKey.key,
+            code: pressedKey.code,
+            location: pressedKey.location,
+            ctrlKey: false,
+            shiftKey: false,
+            altKey: false,
+            metaKey: false,
+            bubbles: true,
+            cancelable: true,
+          });
+          dispatchTarget.dispatchEvent(flushedKeyup);
+        }
+        rewrittenPressedKeys.clear();
       }
 
       let key = event.key;
@@ -356,6 +415,8 @@ export function HyperbrowserVncViewer({
     return () => {
       document.removeEventListener("keydown", forwardKeyboardEvent, true);
       document.removeEventListener("keyup", forwardKeyboardEvent, true);
+      rewrittenKeyCodesRef.current.clear();
+      rewrittenPressedKeysRef.current.clear();
     };
   }, [
     isVncInputActive,
