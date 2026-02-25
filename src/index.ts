@@ -6,3 +6,10 @@ export {
   HyperbrowserVncViewer,
   type HyperbrowserVncViewerProps
 } from './components/HyperbrowserVncViewer';
+
+export {
+  useHyperbrowserHlsPlayback,
+  type HyperbrowserVideoSourceType,
+  type UseHyperbrowserHlsPlaybackParams,
+  type UseHyperbrowserHlsPlaybackResult
+} from './hooks/useHyperbrowserHlsPlayback';

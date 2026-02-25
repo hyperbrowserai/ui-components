@@ -11,8 +11,8 @@ This folder is for manual visual verification of UI components.
 ## Run
 
 1. Install dependencies for this package.
-2. Run `npm run test:visual:vnc-viewer` (or `npm run test:visual`).
-3. Open the printed local URL in a browser and select `Hyperbrowser VNC Viewer`.
+2. Run `npm run test:visual`.
+3. Open the printed local URL in a browser and select the scenario to inspect.
 
 ## Add a new scenario
 
@@ -24,3 +24,4 @@ This folder is for manual visual verification of UI components.
 
 - `smoke.example.js`: Validates package exports are discoverable.
 - `hyperbrowser-vnc-viewer.scenario.js`: Interactive manual test for `HyperbrowserVncViewer`.
+- `hyperbrowser-hls-playback.scenario.js`: Interactive manual test for `useHyperbrowserHlsPlayback`.

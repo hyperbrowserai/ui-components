@@ -29,13 +29,15 @@
     "build": "npm run clean && npm run build:esm && npm run build:cjs && npm run build:types && node ./scripts/write-dist-package-jsons.mjs",
     "typecheck": "tsc -p ./tsconfig.base.json --noEmit",
     "test:visual": "npm run build && node ./scripts/serve-visual-tests.mjs",
-    "test:visual:vnc-viewer": "npm run test:visual --"
+    "test:visual:vnc-viewer": "npm run test:visual --",
+    "test:visual:hls-playback": "npm run test:visual --"
   },
   "peerDependencies": {
     "react": ">=18 <20",
     "react-dom": ">=18 <20"
   },
   "dependencies": {
+    "hls.js": "^1.6.13",
     "react-vnc": "^3.2.0"
   },
   "devDependencies": {
