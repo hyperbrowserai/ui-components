@@ -20,6 +20,43 @@ TypeScript-first React component package scaffold with:
 - `npm run build`: Build ESM, CJS, and declaration outputs.
 - `npm run test:visual`: Build package and start visual harness server.
 
+## VNC component usage
+
+`HyperbrowserVncViewer` renders a noVNC viewer using a Hyperbrowser session token and
+connect base URL.
+
+```tsx
+import { HyperbrowserVncViewer } from "@hyperbrowser/ui-components";
+
+export function SessionLiveView({
+  token,
+  connectUrl,
+}: {
+  token: string;
+  connectUrl: string;
+}) {
+  return (
+    <HyperbrowserVncViewer
+      token={token}
+      connectUrl={connectUrl}
+      height={560}
+      rewriteCmdAsCtrl
+      useComputerActionClipboard
+      onConnectionError={(message) => {
+        console.error("VNC connection error:", message);
+      }}
+    />
+  );
+}
+```
+
+Notes:
+
+- Required props: `token`, `connectUrl`.
+- `rewriteCmdAsCtrl` remaps macOS command shortcuts to control for the remote session.
+- `useComputerActionClipboard` routes copy/paste through computer actions.
+- `disableFocusOnConnect` can be used to prevent automatic VNC keyboard focus.
+
 ## HLS hook usage
 
 `useHyperbrowserHlsPlayback` is designed as an MP4-compatible integration path:
