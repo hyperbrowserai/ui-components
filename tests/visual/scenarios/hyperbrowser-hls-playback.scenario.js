@@ -5,12 +5,12 @@ const DEFAULT_API_BASE_URL = "https://api.hyperbrowser.ai";
 function HyperbrowserHlsPlaybackDemo({ useHyperbrowserHlsPlayback }) {
   const videoRef = React.useRef(null);
   const [draftSessionId, setDraftSessionId] = React.useState("PASTE_SESSION_ID_HERE");
-  const [draftApiKey, setDraftApiKey] = React.useState("PASTE_API_KEY_HERE");
+  const [draftSessionToken, setDraftSessionToken] = React.useState("PASTE_SESSION_TOKEN_HERE");
   const [draftApiBaseUrl, setDraftApiBaseUrl] = React.useState(DEFAULT_API_BASE_URL);
   const [sourceType, setSourceType] = React.useState("auto");
   const [enabled, setEnabled] = React.useState(true);
   const [sessionId, setSessionId] = React.useState("PASTE_SESSION_ID_HERE");
-  const [apiKey, setApiKey] = React.useState("PASTE_API_KEY_HERE");
+  const [sessionToken, setSessionToken] = React.useState("PASTE_SESSION_TOKEN_HERE");
   const [apiBaseUrl, setApiBaseUrl] = React.useState(DEFAULT_API_BASE_URL);
   const [lastEvent, setLastEvent] = React.useState("idle");
   const [connectAttempt, setConnectAttempt] = React.useState(0);
@@ -20,7 +20,7 @@ function HyperbrowserHlsPlaybackDemo({ useHyperbrowserHlsPlayback }) {
     enabled,
     sourceType,
     sessionId,
-    apiKey,
+    sessionToken,
     apiBaseUrl,
     onLoadedData: () => setLastEvent("loadeddata"),
     onVideoError: () => setLastEvent("video-error"),
@@ -30,7 +30,7 @@ function HyperbrowserHlsPlaybackDemo({ useHyperbrowserHlsPlayback }) {
 
   const applyPlaybackValues = () => {
     setSessionId(draftSessionId);
-    setApiKey(draftApiKey);
+    setSessionToken(draftSessionToken);
     setApiBaseUrl(draftApiBaseUrl);
     setLastEvent("connecting");
     setConnectAttempt((value) => value + 1);
@@ -71,10 +71,10 @@ function HyperbrowserHlsPlaybackDemo({ useHyperbrowserHlsPlayback }) {
       React.createElement(
         "label",
         { style: { display: "grid", gap: "0.4rem", fontWeight: 600 } },
-        "API Key",
+        "Session Token",
         React.createElement("input", {
-          value: draftApiKey,
-          onChange: (event) => setDraftApiKey(event.target.value),
+          value: draftSessionToken,
+          onChange: (event) => setDraftSessionToken(event.target.value),
           type: "password",
           style: {
             border: "1px solid #cbd5e1",

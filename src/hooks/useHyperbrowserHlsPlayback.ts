@@ -21,7 +21,7 @@ export type UseHyperbrowserHlsPlaybackParams = {
   enabled?: boolean;
   sourceType?: HyperbrowserVideoSourceType;
   sessionId?: string;
-  apiKey?: string;
+  sessionToken?: string;
   apiBaseUrl?: string;
   onLoadedData?: () => void;
   onVideoError?: (error?: unknown) => void;
@@ -158,7 +158,7 @@ export function useHyperbrowserHlsPlayback({
   enabled = true,
   sourceType = "auto",
   sessionId,
-  apiKey,
+  sessionToken,
   apiBaseUrl,
   onLoadedData,
   onVideoError,
@@ -221,7 +221,7 @@ export function useHyperbrowserHlsPlayback({
 
     let isCancelled = false;
     const trimmedSessionId = sessionId?.trim() ?? "";
-    const trimmedApiKey = apiKey?.trim() ?? "";
+    const trimmedSessionToken = sessionToken?.trim() ?? "";
     const handleLoaded = () => {
       onLoadedDataRef.current?.();
     };
@@ -253,8 +253,8 @@ export function useHyperbrowserHlsPlayback({
         failEarly("HLS playback requires a sessionId.");
         return;
       }
-      if (!trimmedApiKey) {
-        failEarly("HLS playback requires an apiKey.");
+      if (!trimmedSessionToken) {
+        failEarly("HLS playback requires a sessionToken.");
         return;
       }
 
@@ -280,7 +280,7 @@ export function useHyperbrowserHlsPlayback({
       const HlsCtor = hlsModule.default as HlsConstructor | undefined;
       if (!HlsCtor || !HlsCtor.isSupported()) {
         const unsupportedMessage =
-          "This browser does not support hls.js playback for API-key authenticated streams.";
+          "This browser does not support hls.js playback for session-token authenticated streams.";
         setSourceError(unsupportedMessage);
         onUnsupportedHlsRef.current?.();
         onVideoErrorRef.current?.(new Error(unsupportedMessage));
@@ -304,21 +304,21 @@ export function useHyperbrowserHlsPlayback({
         }
       }
 
-      const apiKeyHeaderName = "x-api-key";
+      const authorizationHeaderName = "Authorization";
       const hls = new HlsCtor({
         enableWorker: true,
         lowLatencyMode: false,
         loader: SegmentRewriteLoader as typeof HlsLoader,
         xhrSetup: (xhr: XMLHttpRequest) => {
           xhr.withCredentials = false;
-          xhr.setRequestHeader(apiKeyHeaderName, trimmedApiKey);
+          xhr.setRequestHeader(authorizationHeaderName, trimmedSessionToken);
         },
         fetchSetup: async (_context: unknown, initParams: RequestInit = {}) => ({
           ...initParams,
           credentials: "omit",
           headers: {
             ...(initParams.headers ?? {}),
-            [apiKeyHeaderName]: trimmedApiKey,
+            [authorizationHeaderName]: trimmedSessionToken,
           },
         }),
       });
@@ -355,7 +355,7 @@ export function useHyperbrowserHlsPlayback({
     };
   }, [
     apiBaseUrl,
-    apiKey,
+    sessionToken,
     destroyHls,
     enabled,
     isHlsSource,

@@ -68,17 +68,17 @@ import { useHyperbrowserHlsPlayback } from "@hyperbrowser/ui-components";
 
 export function SessionVideo({
   sessionId,
-  apiKey,
+  sessionToken,
 }: {
   sessionId: string;
-  apiKey: string;
+  sessionToken: string;
 }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const { reloadSource, sourceError, isHlsSource } = useHyperbrowserHlsPlayback({
     videoRef,
     sourceType: "hls",
     sessionId,
-    apiKey,
+    sessionToken,
     apiBaseUrl: "https://api.hyperbrowser.ai",
   });
 
@@ -97,13 +97,13 @@ export function SessionVideo({
 
 Notes:
 
-- HLS mode requires both `sessionId` and `apiKey`.
+- HLS mode requires both `sessionId` and `sessionToken`.
 - HLS mode does not require an explicit playlist URL.
 - The hook rewrites requests to:
   `https://api.hyperbrowser.ai/api/session/{sessionId}/video-playlist.m3u8`
   and
   `https://api.hyperbrowser.ai/api/session/{sessionId}/video-segment/{assetName}`.
-- Requests use `x-api-key: <apiKey>` and omit credential cookies.
+- Requests use `Authorization: <sessionToken>` and omit credential cookies.
 - `source` is optional and only needed for non-HLS (for example MP4 playback).
 
 ## Publishing behavior
