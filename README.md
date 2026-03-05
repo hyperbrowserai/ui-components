@@ -103,7 +103,7 @@ Notes:
   `https://api.hyperbrowser.ai/api/session/{sessionId}/video-playlist.m3u8`
   and
   `https://api.hyperbrowser.ai/api/session/{sessionId}/video-segment/{assetName}`.
-- Requests use `Authorization: <sessionToken>` and omit credential cookies.
+- Requests use `Authorization: Bearer <sessionToken>` and omit credential cookies.
 - `source` is optional and only needed for non-HLS (for example MP4 playback).
 
 ## Publishing behavior

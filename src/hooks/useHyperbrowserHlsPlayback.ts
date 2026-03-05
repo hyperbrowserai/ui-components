@@ -305,20 +305,23 @@ export function useHyperbrowserHlsPlayback({
       }
 
       const authorizationHeaderName = "Authorization";
+      const authorizationHeaderValue = /^Bearer\s+/i.test(trimmedSessionToken)
+        ? trimmedSessionToken
+        : `Bearer ${trimmedSessionToken}`;
       const hls = new HlsCtor({
         enableWorker: true,
         lowLatencyMode: false,
         loader: SegmentRewriteLoader as typeof HlsLoader,
         xhrSetup: (xhr: XMLHttpRequest) => {
           xhr.withCredentials = false;
-          xhr.setRequestHeader(authorizationHeaderName, trimmedSessionToken);
+          xhr.setRequestHeader(authorizationHeaderName, authorizationHeaderValue);
         },
         fetchSetup: async (_context: unknown, initParams: RequestInit = {}) => ({
           ...initParams,
           credentials: "omit",
           headers: {
             ...(initParams.headers ?? {}),
-            [authorizationHeaderName]: trimmedSessionToken,
+            [authorizationHeaderName]: authorizationHeaderValue,
           },
         }),
       });
