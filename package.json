@@ -1,6 +1,6 @@
 {
   "name": "@hyperbrowser/ui",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "React UI components for Hyperbrowser features.",
   "license": "MIT",
   "sideEffects": false,
@@ -27,6 +27,7 @@
     "build:cjs": "tsc -p ./tsconfig.cjs.json",
     "build:types": "tsc -p ./tsconfig.types.json",
     "build": "npm run clean && npm run build:esm && npm run build:cjs && npm run build:types && node ./scripts/write-dist-package-jsons.mjs",
+    "prepublishOnly": "npm run build",
     "typecheck": "tsc -p ./tsconfig.base.json --noEmit",
     "test:visual": "npm run build && node ./scripts/serve-visual-tests.mjs",
     "test:visual:vnc-viewer": "npm run test:visual --",
