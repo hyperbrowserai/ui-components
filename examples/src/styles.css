@@ -1,0 +1,164 @@
+:root {
+  font-family: "SF Pro Text", "Segoe UI", sans-serif;
+  color: #0f172a;
+  background: #f8fafc;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: radial-gradient(circle at top right, #dbeafe, #f8fafc 45%);
+}
+
+main {
+  width: min(1200px, 100% - 2rem);
+  margin: 1.5rem auto;
+  display: grid;
+  gap: 1rem;
+}
+
+header h1 {
+  margin: 0;
+  font-size: 1.6rem;
+}
+
+header p {
+  margin: 0.4rem 0 0;
+  color: #334155;
+}
+
+.tab-row {
+  display: flex;
+  gap: 0.6rem;
+}
+
+button {
+  border: 1px solid #1d4ed8;
+  border-radius: 8px;
+  background: #2563eb;
+  color: #fff;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+  padding: 0.5rem 0.8rem;
+}
+
+button.secondary {
+  border-color: #0f766e;
+  background: #0d9488;
+}
+
+.tab-row button {
+  border-color: #cbd5e1;
+  background: #fff;
+  color: #0f172a;
+}
+
+.tab-row button.active {
+  border-color: #1d4ed8;
+  color: #1e3a8a;
+  background: #eff6ff;
+}
+
+.panel-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(320px, 420px) minmax(0, 1fr);
+  align-items: start;
+}
+
+.card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
+  padding: 1rem;
+}
+
+.panel {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.panel h2 {
+  margin: 0 0 0.2rem;
+  font-size: 1.1rem;
+}
+
+label {
+  display: grid;
+  gap: 0.3rem;
+}
+
+label > span {
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+input,
+select {
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font: inherit;
+  padding: 0.5rem 0.6rem;
+  background: #fff;
+}
+
+.row {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.inline-toggle {
+  width: fit-content;
+  display: inline-flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.inline-toggle > span {
+  font-weight: 400;
+}
+
+.status-block {
+  color: #334155;
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+.error-text {
+  color: #b91c1c;
+  font-weight: 600;
+}
+
+.video-card,
+.vnc-card {
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid #1e293b;
+  background: #0f172a;
+  min-height: 320px;
+}
+
+video {
+  width: 100%;
+  min-height: 320px;
+  display: block;
+  background: #020617;
+}
+
+@media (max-width: 960px) {
+  .panel-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .vnc-card,
+  .video-card {
+    min-height: 280px;
+  }
+}
