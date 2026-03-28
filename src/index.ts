@@ -13,3 +13,28 @@ export {
   type UseHyperbrowserHlsPlaybackParams,
   type UseHyperbrowserHlsPlaybackResult
 } from './hooks/useHyperbrowserHlsPlayback';
+
+export { TerminalSurface } from './components/terminal/TerminalSurface';
+
+export {
+  defaultTerminalTheme,
+  resolveTerminalTheme,
+  terminalThemePresets
+} from './components/terminal/terminalThemes';
+
+export type {
+  ResolvedTerminalTheme,
+  TerminalChromeTheme,
+  TerminalConnectParams,
+  TerminalConnection,
+  TerminalExitEvent,
+  TerminalExitListener,
+  TerminalOutputListener,
+  TerminalSession,
+  TerminalSize,
+  TerminalState,
+  TerminalSurfaceProps,
+  TerminalTheme,
+  TerminalThemeName,
+  TerminalUnsubscribe
+} from './components/terminal/types';

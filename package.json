@@ -3,7 +3,9 @@
   "version": "0.2.0",
   "description": "React UI components for Hyperbrowser features.",
   "license": "MIT",
-  "sideEffects": false,
+  "sideEffects": [
+    "**/*.css"
+  ],
   "files": [
     "dist",
     "LICENSE",
@@ -19,6 +21,7 @@
       "require": "./dist/cjs/index.js",
       "default": "./dist/esm/index.js"
     },
+    "./terminal.css": "./dist/styles/terminal.css",
     "./package.json": "./package.json"
   },
   "scripts": {
@@ -26,7 +29,7 @@
     "build:esm": "tsc -p ./tsconfig.esm.json",
     "build:cjs": "tsc -p ./tsconfig.cjs.json",
     "build:types": "tsc -p ./tsconfig.types.json",
-    "build": "npm run clean && npm run build:esm && npm run build:cjs && npm run build:types && node ./scripts/write-dist-package-jsons.mjs",
+    "build": "npm run clean && npm run build:esm && npm run build:cjs && npm run build:types && node ./scripts/write-dist-package-jsons.mjs && node ./scripts/copy-static-assets.mjs",
     "prepublishOnly": "npm run build",
     "typecheck": "tsc -p ./tsconfig.base.json --noEmit",
     "test:visual": "npm run build && node ./scripts/serve-visual-tests.mjs",
@@ -38,6 +41,8 @@
     "react-dom": ">=18 <20"
   },
   "dependencies": {
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/xterm": "^6.0.0",
     "hls.js": "^1.6.13",
     "react-vnc": "^3.2.0"
   },
