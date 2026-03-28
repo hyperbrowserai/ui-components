@@ -3,8 +3,14 @@ import * as components from '../../../dist/esm/index.js';
 import { hyperbrowserVncViewerScenario } from '../scenarios/hyperbrowser-vnc-viewer.scenario.js';
 import { hyperbrowserHlsPlaybackScenario } from '../scenarios/hyperbrowser-hls-playback.scenario.js';
 import { smokeScenario } from '../scenarios/smoke.example.js';
+import { terminalSurfaceScenario } from '../scenarios/terminal-surface.scenario.js';
 
-const scenarios = [smokeScenario, hyperbrowserVncViewerScenario, hyperbrowserHlsPlaybackScenario];
+const scenarios = [
+  smokeScenario,
+  terminalSurfaceScenario,
+  hyperbrowserVncViewerScenario,
+  hyperbrowserHlsPlaybackScenario
+];
 
 function ScenarioSelector({ selectedId, onChange }) {
   return React.createElement(
