@@ -12,7 +12,7 @@ This folder is for manual visual verification of UI components.
 
 1. Install dependencies for this package.
 2. Run `npm run test:visual`.
-3. Open the printed local URL in a browser and select the scenario to inspect.
+3. Open the printed local URL in a browser and select the scenario to inspect. The default dev server port is `3000` unless overridden via `PORT`.
 
 ## Add a new scenario
 
@@ -23,5 +23,6 @@ This folder is for manual visual verification of UI components.
 ## Included scenarios
 
 - `smoke.example.js`: Validates package exports are discoverable.
+- `hyperbrowser-terminal.scenario.js`: Manual test surface for `HyperbrowserTerminal` in API mode or direct runtime-bootstrap mode.
 - `hyperbrowser-vnc-viewer.scenario.js`: Interactive manual test for `HyperbrowserVncViewer`.
 - `hyperbrowser-hls-playback.scenario.js`: Interactive manual test for `useHyperbrowserHlsPlayback`.

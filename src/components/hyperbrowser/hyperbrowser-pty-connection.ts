@@ -122,7 +122,8 @@ function resolveFetchImplementation(
   if (typeof resolved !== "function") {
     throw new Error("Hyperbrowser PTY transport requires a global fetch implementation.");
   }
-  return resolved;
+  return ((input: RequestInfo | URL, init?: RequestInit) =>
+    Reflect.apply(resolved, globalThis, [input, init])) as typeof fetch;
 }
 
 function resolveWebSocketFactory(

@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const defaultEntry = '/tests/visual/harness/index.html';
-const port = Number.parseInt(process.env.PORT ?? '4173', 10);
+const port = Number.parseInt(process.env.PORT ?? '3000', 10);
 const defaultHost = process.env.HOST ?? 'localhost';
 
 function parseHostArg(argv) {
@@ -94,7 +94,11 @@ const server = createServer(async (req, res) => {
     return;
   }
 
-  res.writeHead(200, { 'Content-Type': contentType });
+  res.writeHead(200, {
+    'Cache-Control': 'no-store, no-cache, must-revalidate',
+    'Content-Type': contentType,
+    Pragma: 'no-cache'
+  });
   res.end(body);
 });
 

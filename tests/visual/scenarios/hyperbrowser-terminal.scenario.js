@@ -1,7 +1,22 @@
 import React from 'react';
 
-const DEFAULT_API_BASE_URL = 'http://127.0.0.1:3001/api';
+const DEFAULT_API_BASE_URL = 'http://localhost:8080/api';
 const DEFAULT_COMMAND = 'bash';
+
+const inputStyle = {
+  border: '1px solid #cbd5e1',
+  borderRadius: '10px',
+  font: 'inherit',
+  padding: '0.65rem'
+};
+
+const buttonStyle = {
+  borderRadius: '999px',
+  cursor: 'pointer',
+  font: 'inherit',
+  fontWeight: 600,
+  padding: '0.65rem 0.95rem'
+};
 
 function Card({ children }) {
   return React.createElement(
@@ -46,54 +61,85 @@ function HyperbrowserTerminalDemo({ HyperbrowserTerminal, terminalThemePresets }
   const [command, setCommand] = React.useState(DEFAULT_COMMAND);
   const [cwd, setCwd] = React.useState('');
   const [closeBehavior, setCloseBehavior] = React.useState('disconnect');
+  const [appliedConfig, setAppliedConfig] = React.useState(null);
   const [launchCount, setLaunchCount] = React.useState(0);
   const [latestEvent, setLatestEvent] = React.useState('Idle.');
 
+  React.useEffect(() => {
+    setApiBaseUrl(DEFAULT_API_BASE_URL);
+  }, []);
+
   const activeConfig = React.useMemo(() => {
-    if (launchCount === 0) {
+    if (!appliedConfig) {
       return null;
     }
 
-    if (mode === 'api') {
+    if (appliedConfig.mode === 'api') {
       return {
-        apiBaseUrl,
-        apiHeaders: apiToken
+        apiBaseUrl: appliedConfig.apiBaseUrl,
+        apiHeaders: appliedConfig.apiToken
           ? {
-              Authorization: `Bearer ${apiToken}`
+              Authorization: `Bearer ${appliedConfig.apiToken}`
             }
           : undefined,
-        closeBehavior,
-        command,
-        cwd: cwd || undefined,
-        sandboxId
+        closeBehavior: appliedConfig.closeBehavior,
+        command: appliedConfig.command,
+        cwd: appliedConfig.cwd || undefined,
+        sandboxId: appliedConfig.sandboxId
       };
     }
 
     return {
-      bootstrapUrl,
-      closeBehavior,
-      command,
-      cwd: cwd || undefined,
-      runtimeBaseUrl
+      bootstrapUrl: appliedConfig.bootstrapUrl,
+      closeBehavior: appliedConfig.closeBehavior,
+      command: appliedConfig.command,
+      cwd: appliedConfig.cwd || undefined,
+      runtimeBaseUrl: appliedConfig.runtimeBaseUrl
     };
-  }, [
-    apiBaseUrl,
-    apiToken,
-    bootstrapUrl,
-    closeBehavior,
-    command,
-    cwd,
-    launchCount,
-    mode,
-    runtimeBaseUrl,
-    sandboxId
-  ]);
+  }, [appliedConfig]);
 
   const themeNames = Object.keys(terminalThemePresets ?? {});
   const canLaunch =
     mode === 'api'
       ? Boolean(sandboxId.trim() && apiBaseUrl.trim())
       : Boolean(runtimeBaseUrl.trim() && bootstrapUrl.trim());
+
+  const applyConnectionValues = () => {
+    if (!canLaunch) {
+      return;
+    }
+
+    setLatestEvent('Connecting...');
+    setAppliedConfig({
+      apiBaseUrl: apiBaseUrl.trim(),
+      apiToken: apiToken.trim(),
+      bootstrapUrl: bootstrapUrl.trim(),
+      closeBehavior,
+      command: command.trim() || DEFAULT_COMMAND,
+      cwd: cwd.trim(),
+      mode,
+      runtimeBaseUrl: runtimeBaseUrl.trim(),
+      sandboxId: sandboxId.trim(),
+      theme
+    });
+    setLaunchCount((value) => value + 1);
+  };
+
+  const resetForm = () => {
+    setMode('api');
+    setTheme('atlas');
+    setSandboxId('');
+    setApiBaseUrl(DEFAULT_API_BASE_URL);
+    setApiToken('');
+    setRuntimeBaseUrl('');
+    setBootstrapUrl('');
+    setCommand(DEFAULT_COMMAND);
+    setCwd('');
+    setCloseBehavior('disconnect');
+    setAppliedConfig(null);
+    setLaunchCount(0);
+    setLatestEvent('Idle.');
+  };
 
   return React.createElement(
     'div',
@@ -119,12 +165,7 @@ function HyperbrowserTerminalDemo({ HyperbrowserTerminal, terminalThemePresets }
             {
               value: mode,
               onChange: (event) => setMode(event.target.value),
-              style: {
-                border: '1px solid #cbd5e1',
-                borderRadius: '10px',
-                font: 'inherit',
-                padding: '0.6rem'
-              }
+              style: inputStyle
             },
             React.createElement('option', { value: 'api' }, 'Control plane API'),
             React.createElement('option', { value: 'runtime' }, 'Direct runtime bootstrap')
@@ -139,12 +180,7 @@ function HyperbrowserTerminalDemo({ HyperbrowserTerminal, terminalThemePresets }
             {
               value: theme,
               onChange: (event) => setTheme(event.target.value),
-              style: {
-                border: '1px solid #cbd5e1',
-                borderRadius: '10px',
-                font: 'inherit',
-                padding: '0.6rem'
-              }
+              style: inputStyle
             },
             themeNames.map((themeName) =>
               React.createElement(
@@ -164,12 +200,7 @@ function HyperbrowserTerminalDemo({ HyperbrowserTerminal, terminalThemePresets }
             {
               value: closeBehavior,
               onChange: (event) => setCloseBehavior(event.target.value),
-              style: {
-                border: '1px solid #cbd5e1',
-                borderRadius: '10px',
-                font: 'inherit',
-                padding: '0.6rem'
-              }
+              style: inputStyle
             },
             React.createElement('option', { value: 'disconnect' }, 'Disconnect only'),
             React.createElement('option', { value: 'terminate' }, 'Terminate PTY on unmount')
@@ -191,15 +222,11 @@ function HyperbrowserTerminalDemo({ HyperbrowserTerminal, terminalThemePresets }
               null,
               'API base URL',
               React.createElement('input', {
+                autoComplete: 'off',
                 value: apiBaseUrl,
                 onChange: (event) => setApiBaseUrl(event.target.value),
-                placeholder: 'http://127.0.0.1:3001/api',
-                style: {
-                  border: '1px solid #cbd5e1',
-                  borderRadius: '10px',
-                  font: 'inherit',
-                  padding: '0.65rem'
-                },
+                placeholder: 'http://localhost:8080/api',
+                style: inputStyle,
                 type: 'text'
               })
             ),
@@ -208,15 +235,11 @@ function HyperbrowserTerminalDemo({ HyperbrowserTerminal, terminalThemePresets }
               null,
               'Sandbox ID',
               React.createElement('input', {
+                autoComplete: 'off',
                 value: sandboxId,
                 onChange: (event) => setSandboxId(event.target.value),
                 placeholder: 'sandbox UUID',
-                style: {
-                  border: '1px solid #cbd5e1',
-                  borderRadius: '10px',
-                  font: 'inherit',
-                  padding: '0.65rem'
-                },
+                style: inputStyle,
                 type: 'text'
               })
             ),
@@ -225,17 +248,40 @@ function HyperbrowserTerminalDemo({ HyperbrowserTerminal, terminalThemePresets }
               null,
               'API bearer token',
               React.createElement('input', {
+                autoComplete: 'off',
                 value: apiToken,
                 onChange: (event) => setApiToken(event.target.value),
                 placeholder: 'Optional if your backend auth uses cookies',
-                style: {
-                  border: '1px solid #cbd5e1',
-                  borderRadius: '10px',
-                  font: 'inherit',
-                  padding: '0.65rem'
-                },
-                type: 'text'
+                style: inputStyle,
+                type: 'password'
               })
+            ),
+            React.createElement(
+              'div',
+              {
+                style: {
+                  alignItems: 'end',
+                  display: 'flex',
+                  gap: '0.6rem'
+                }
+              },
+              React.createElement(
+                'button',
+                {
+                  type: 'button',
+                  onClick: () => {
+                    setMode('api');
+                    setApiBaseUrl(DEFAULT_API_BASE_URL);
+                  },
+                  style: {
+                    ...buttonStyle,
+                    background: '#e2e8f0',
+                    border: '1px solid #cbd5e1',
+                    color: '#0f172a'
+                  }
+                },
+                'Reset to default API'
+              )
             )
           )
         : React.createElement(
@@ -252,15 +298,11 @@ function HyperbrowserTerminalDemo({ HyperbrowserTerminal, terminalThemePresets }
               null,
               'Runtime base URL',
               React.createElement('input', {
+                autoComplete: 'off',
                 value: runtimeBaseUrl,
                 onChange: (event) => setRuntimeBaseUrl(event.target.value),
                 placeholder: 'https://<session>.<region>.hyperbrowser.run',
-                style: {
-                  border: '1px solid #cbd5e1',
-                  borderRadius: '10px',
-                  font: 'inherit',
-                  padding: '0.65rem'
-                },
+                style: inputStyle,
                 type: 'text'
               })
             ),
@@ -269,15 +311,11 @@ function HyperbrowserTerminalDemo({ HyperbrowserTerminal, terminalThemePresets }
               null,
               'Bootstrap URL',
               React.createElement('input', {
+                autoComplete: 'off',
                 value: bootstrapUrl,
                 onChange: (event) => setBootstrapUrl(event.target.value),
                 placeholder: 'https://<session>.../_hb/runtime-auth?grant=...',
-                style: {
-                  border: '1px solid #cbd5e1',
-                  borderRadius: '10px',
-                  font: 'inherit',
-                  padding: '0.65rem'
-                },
+                style: inputStyle,
                 type: 'text'
               })
             )
@@ -296,15 +334,11 @@ function HyperbrowserTerminalDemo({ HyperbrowserTerminal, terminalThemePresets }
           null,
           'Command',
           React.createElement('input', {
+            autoComplete: 'off',
             value: command,
             onChange: (event) => setCommand(event.target.value),
             placeholder: DEFAULT_COMMAND,
-            style: {
-              border: '1px solid #cbd5e1',
-              borderRadius: '10px',
-              font: 'inherit',
-              padding: '0.65rem'
-            },
+            style: inputStyle,
             type: 'text'
           })
         ),
@@ -313,15 +347,11 @@ function HyperbrowserTerminalDemo({ HyperbrowserTerminal, terminalThemePresets }
           null,
           'Working directory',
           React.createElement('input', {
+            autoComplete: 'off',
             value: cwd,
             onChange: (event) => setCwd(event.target.value),
             placeholder: '/home/hyperuser',
-            style: {
-              border: '1px solid #cbd5e1',
-              borderRadius: '10px',
-              font: 'inherit',
-              padding: '0.65rem'
-            },
+            style: inputStyle,
             type: 'text'
           })
         )
@@ -341,27 +371,81 @@ function HyperbrowserTerminalDemo({ HyperbrowserTerminal, terminalThemePresets }
           {
             type: 'button',
             disabled: !canLaunch,
-            onClick: () => {
-              setLatestEvent('Connecting...');
-              setLaunchCount((value) => value + 1);
-            },
+            onClick: applyConnectionValues,
             style: {
+              ...buttonStyle,
               border: '1px solid #0f766e',
-              borderRadius: '999px',
               background: canLaunch ? '#0f766e' : '#94a3b8',
               color: '#ffffff',
-              cursor: canLaunch ? 'pointer' : 'not-allowed',
-              font: 'inherit',
-              fontWeight: 600,
-              padding: '0.65rem 0.95rem'
+              cursor: canLaunch ? 'pointer' : 'not-allowed'
             }
           },
           launchCount > 0 ? 'Reconnect terminal' : 'Launch terminal'
         ),
         React.createElement(
+          'button',
+          {
+            type: 'button',
+            onClick: resetForm,
+            style: {
+              ...buttonStyle,
+              background: '#ffffff',
+              border: '1px solid #cbd5e1',
+              color: '#0f172a'
+            }
+          },
+          'Reset form'
+        ),
+        React.createElement(
           'span',
           { style: { color: '#334155', fontSize: '0.92rem' } },
-          'API mode calls `/sandbox/:id/runtime/browser-auth` directly. Runtime mode skips that step and uses a precomputed bootstrap URL.'
+          'API mode calls `/sandbox/:id/runtime/browser-auth` directly. Runtime mode only needs a live sandbox runtime plus a precomputed bootstrap URL.'
+        )
+      ),
+      React.createElement(
+        'div',
+        {
+          style: {
+            background: '#f8fafc',
+            border: '1px solid #e2e8f0',
+            borderRadius: '12px',
+            color: '#334155',
+            display: 'grid',
+            gap: '0.45rem',
+            padding: '0.85rem 1rem'
+          }
+        },
+        React.createElement(
+          'strong',
+          null,
+          appliedConfig ? 'Applied connection' : 'Draft only'
+        ),
+        React.createElement(
+          'div',
+          {
+            style: {
+              color: '#0f172a',
+              fontFamily: 'monospace',
+              fontSize: '0.9rem'
+            }
+          },
+          `Compiled default API base: ${DEFAULT_API_BASE_URL}`
+        ),
+        React.createElement(
+          'div',
+          null,
+          appliedConfig
+            ? appliedConfig.mode === 'api'
+              ? `API ${appliedConfig.apiBaseUrl} -> sandbox ${appliedConfig.sandboxId}`
+              : `Runtime ${appliedConfig.runtimeBaseUrl}`
+            : 'Edit the fields above, then click Launch terminal to apply a stable connection snapshot.'
+        ),
+        React.createElement(
+          'div',
+          { style: { fontSize: '0.92rem' } },
+          mode === 'api'
+            ? 'API mode needs a reachable control-plane API and auth via bearer token or browser cookies.'
+            : 'Runtime mode skips the control-plane API. Paste the runtime base URL and bootstrap URL from an already-running sandbox.'
         )
       ),
       React.createElement(
@@ -381,16 +465,16 @@ function HyperbrowserTerminalDemo({ HyperbrowserTerminal, terminalThemePresets }
           React.createElement(HyperbrowserTerminal, {
             ...activeConfig,
             autoFocus: false,
-            key: `${launchCount}:${mode}:${theme}`,
+            key: `${launchCount}:${appliedConfig.theme}`,
             onConnectionError: (message) => setLatestEvent(`Connection error: ${message}`),
             onExit: (event) =>
               setLatestEvent(
                 event.error
                   ? `Exited with error: ${event.error}`
                   : `Exited with code ${event.exitCode ?? 0}`
-              ),
+            ),
             style: { height: '100%' },
-            theme,
+            theme: appliedConfig.theme,
             title: 'Hyperbrowser PTY Terminal'
           })
         )
