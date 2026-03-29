@@ -8,6 +8,16 @@ export {
 } from './components/HyperbrowserVncViewer';
 
 export {
+  HyperbrowserTerminal,
+  createHyperbrowserPtyConnection,
+  type HyperbrowserPtyBrowserAuthResolver,
+  type HyperbrowserPtyConnectionOptions,
+  type HyperbrowserPtyStatus,
+  type HyperbrowserRuntimeBrowserAuth,
+  type HyperbrowserTerminalProps
+} from './components/hyperbrowser/HyperbrowserTerminal';
+
+export {
   useHyperbrowserHlsPlayback,
   type HyperbrowserVideoSourceType,
   type UseHyperbrowserHlsPlaybackParams,
