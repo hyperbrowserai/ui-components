@@ -23,6 +23,7 @@ export type HyperbrowserRuntimeBrowserAuth = {
   allowedOrigin?: string;
   bootstrapUrl: string;
   bootstrapUrlExpiresAt?: string | null;
+  capabilities?: string[];
   runtime: HyperbrowserRuntimeTarget;
 };
 
