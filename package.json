@@ -33,10 +33,7 @@
     "build": "npm run clean && npm run build:esm && npm run build:cjs && npm run build:types && node ./scripts/write-dist-package-jsons.mjs && node ./scripts/copy-static-assets.mjs",
     "prepublishOnly": "npm run build",
     "typecheck": "tsc -p ./tsconfig.base.json --noEmit",
-    "test:visual": "npm run build && node ./scripts/serve-visual-tests.mjs",
-    "test:visual:filesystem": "npm run test:visual --",
-    "test:visual:vnc-viewer": "npm run test:visual --",
-    "test:visual:hls-playback": "npm run test:visual --"
+    "test:visual": "npm run build && node ./scripts/serve-visual-tests.mjs"
   },
   "peerDependencies": {
     "react": ">=18 <20",

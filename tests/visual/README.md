@@ -23,6 +23,7 @@ This folder is for manual visual verification of UI components.
 ## Included scenarios
 
 - `smoke.example.js`: Validates package exports are discoverable.
+- `filesystem-workspace.scenario.js`: Manual test surface for the generic filesystem workspace and Monaco integration.
 - `hyperbrowser-terminal.scenario.js`: Manual test surface for `HyperbrowserTerminal` in API mode or direct runtime-bootstrap mode.
 - `hyperbrowser-vnc-viewer.scenario.js`: Interactive manual test for `HyperbrowserVncViewer`.
 - `hyperbrowser-hls-playback.scenario.js`: Interactive manual test for `useHyperbrowserHlsPlayback`.
