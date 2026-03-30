@@ -101,7 +101,9 @@ export type TerminalSession = {
   resize(params: { cols: number; rows: number }): void | Promise<void>;
   close(): void | Promise<void>;
   onOutput(listener: (data: Uint8Array) => void): () => void;
-  onExit(listener: (event: { exitCode?: number; error?: string }) => void): () => void;
+  onExit(
+    listener: (event: { exitCode?: number; error?: string }) => void,
+  ): () => void;
   onStatus?(listener: (status: unknown) => void): () => void;
 };
 ```
@@ -136,7 +138,7 @@ Suggested exports:
 
 - `createHyperbrowserPtyConnection`
 - `HyperbrowserTerminal`
-- optional `useHyperbrowserPtyConnection`
+- `useSandboxTerminalConnection`
 
 Suggested wrapper props:
 

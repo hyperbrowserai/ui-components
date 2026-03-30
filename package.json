@@ -21,6 +21,7 @@
       "require": "./dist/cjs/index.js",
       "default": "./dist/esm/index.js"
     },
+    "./terminal-core.css": "./dist/styles/terminal-core.css",
     "./filesystem.css": "./dist/styles/filesystem.css",
     "./terminal.css": "./dist/styles/terminal.css",
     "./package.json": "./package.json"
@@ -33,7 +34,7 @@
     "build": "npm run clean && npm run build:esm && npm run build:cjs && npm run build:types && node ./scripts/write-dist-package-jsons.mjs && node ./scripts/copy-static-assets.mjs",
     "prepublishOnly": "npm run build",
     "typecheck": "tsc -p ./tsconfig.base.json --noEmit",
-    "test:visual": "npm run build && node ./scripts/serve-visual-tests.mjs"
+    "test:visual": "npm run build && vite --config ./tests/visual/vite.config.mjs"
   },
   "peerDependencies": {
     "react": ">=18 <20",
@@ -49,7 +50,9 @@
   "devDependencies": {
     "@types/react": ">=18 <20",
     "@types/react-dom": ">=18 <20",
-    "typescript": "^5.5.4"
+    "@vitejs/plugin-react": "^6.0.1",
+    "typescript": "^5.5.4",
+    "vite": "^8.0.3"
   },
   "engines": {
     "node": ">=16"

@@ -4,8 +4,8 @@
  */
 export {
   HyperbrowserVncViewer,
-  type HyperbrowserVncViewerProps
-} from './components/HyperbrowserVncViewer';
+  type HyperbrowserVncViewerProps,
+} from "./components/HyperbrowserVncViewer";
 
 export {
   HyperbrowserFileWorkspace,
@@ -13,48 +13,54 @@ export {
   type HyperbrowserFileWorkspaceProps,
   type HyperbrowserFilesystemAdapterOptions,
   type HyperbrowserFilesystemBrowserAuthResolver,
-  type HyperbrowserRuntimeBrowserAuth as HyperbrowserFilesystemRuntimeBrowserAuth
-} from './components/hyperbrowser/HyperbrowserFileWorkspace';
+  type HyperbrowserRuntimeBrowserAuth as HyperbrowserFilesystemRuntimeBrowserAuth,
+} from "./components/hyperbrowser/HyperbrowserFileWorkspace";
 
 export {
   HyperbrowserTerminal,
   createHyperbrowserPtyConnection,
+  useSandboxTerminalConnection,
   type HyperbrowserPtyBrowserAuthResolver,
   type HyperbrowserPtyConnectionOptions,
   type HyperbrowserPtyStatus,
   type HyperbrowserRuntimeBrowserAuth,
-  type HyperbrowserTerminalProps
-} from './components/hyperbrowser/HyperbrowserTerminal';
+  type HyperbrowserTerminalProps,
+  type UseSandboxTerminalConnectionOptions,
+} from "./components/hyperbrowser/HyperbrowserTerminal";
 
-export {
-  FileWorkspace
-} from './components/filesystem/FileWorkspace';
+export { FileWorkspace } from "./components/filesystem/FileWorkspace";
 
 export {
   configureMonacoLoader,
-  getConfiguredMonacoVsPath
-} from './components/filesystem/monaco-loader';
+  getConfiguredMonacoVsPath,
+} from "./components/filesystem/monaco-loader";
 
 export {
   defaultFileWorkspaceTheme,
   fileWorkspaceThemePresets,
-  resolveFileWorkspaceTheme
-} from './components/filesystem/fileWorkspaceThemes';
+  resolveFileWorkspaceTheme,
+} from "./components/filesystem/fileWorkspaceThemes";
 
 export {
   useHyperbrowserHlsPlayback,
   type HyperbrowserVideoSourceType,
   type UseHyperbrowserHlsPlaybackParams,
-  type UseHyperbrowserHlsPlaybackResult
-} from './hooks/useHyperbrowserHlsPlayback';
+  type UseHyperbrowserHlsPlaybackResult,
+} from "./hooks/useHyperbrowserHlsPlayback";
 
-export { TerminalSurface } from './components/terminal/TerminalSurface';
+export { BaseTerminal } from "./components/terminal/BaseTerminal";
+export { TerminalSurface } from "./components/terminal/TerminalSurface";
+export { useTerminal } from "./components/terminal/useTerminal";
 
 export {
+  createTerminalTheme,
+  defaultTerminalAppearance,
+  defaultTerminalOptions,
+  defaultTerminalPreset,
   defaultTerminalTheme,
   resolveTerminalTheme,
-  terminalThemePresets
-} from './components/terminal/terminalThemes';
+  terminalPresets,
+} from "./components/terminal/terminalThemes";
 
 export type {
   FileDirectoryListing,
@@ -67,22 +73,29 @@ export type {
   FileWorkspaceProps,
   FileWorkspaceTheme,
   FileWorkspaceThemeName,
-  ResolvedFileWorkspaceTheme
-} from './components/filesystem/types';
+  ResolvedFileWorkspaceTheme,
+} from "./components/filesystem/types";
 
 export type {
   ResolvedTerminalTheme,
+  TerminalAppearance,
   TerminalChromeTheme,
   TerminalConnectParams,
   TerminalConnection,
   TerminalExitEvent,
   TerminalExitListener,
+  TerminalOptionOverrides,
   TerminalOutputListener,
+  TerminalPreset,
+  TerminalPresetName,
   TerminalSession,
   TerminalSize,
-  TerminalState,
+  TerminalStatus,
+  UseTerminalOptions,
+  UseTerminalResult,
+  BaseTerminalProps,
   TerminalSurfaceProps,
+  TerminalSurfaceTheme,
   TerminalTheme,
-  TerminalThemeName,
-  TerminalUnsubscribe
-} from './components/terminal/types';
+  TerminalUnsubscribe,
+} from "./components/terminal/types";

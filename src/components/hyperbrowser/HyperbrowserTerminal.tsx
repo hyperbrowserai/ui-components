@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import React from "react";
 import { TerminalSurface } from "../terminal/TerminalSurface";
 import type { TerminalSurfaceProps } from "../terminal/types";
 import {
@@ -8,83 +8,17 @@ import {
   type HyperbrowserPtyStatus,
   type HyperbrowserRuntimeBrowserAuth,
 } from "./hyperbrowser-pty-connection";
+import {
+  useSandboxTerminalConnection,
+  getSandboxTerminalConnectionIdentity,
+  type UseSandboxTerminalConnectionOptions,
+} from "./useSandboxTerminalConnection";
 
-export type HyperbrowserTerminalProps = Omit<TerminalSurfaceProps, "connection"> &
-  HyperbrowserPtyConnectionOptions;
-
-type StableConnectionFactory = {
-  connection: ReturnType<typeof createHyperbrowserPtyConnection>;
-};
-
-function serializeValue(value: unknown): string {
-  if (!value) {
-    return "";
-  }
-
-  if (Array.isArray(value)) {
-    return JSON.stringify(value);
-  }
-
-  if (value instanceof Headers) {
-    return JSON.stringify(Array.from(value.entries()));
-  }
-
-  if (typeof value === "object") {
-    return JSON.stringify(value, Object.keys(value as Record<string, unknown>).sort());
-  }
-
-  return String(value);
-}
-
-function createTerminalConnectionKey(props: HyperbrowserTerminalProps): string {
-  return [
-    props.sandboxId ?? "",
-    props.runtimeBaseUrl ?? "",
-    props.bootstrapUrl ?? "",
-    props.browserAuthPath ?? "",
-    props.existingPtyId ?? "",
-    props.command ?? "",
-    serializeValue(props.args),
-    props.cwd ?? "",
-    serializeValue(props.env),
-    String(props.useShell ?? ""),
-    String(props.timeoutMs ?? ""),
-    props.closeBehavior ?? "disconnect",
-    props.killSignal ?? "",
-  ].join("|");
-}
-
-function createConnectionOptions(
-  props: HyperbrowserTerminalProps
-): HyperbrowserPtyConnectionOptions {
-  return {
-    apiBaseUrl: props.apiBaseUrl,
-    apiCredentials: props.apiCredentials,
-    apiHeaders: props.apiHeaders,
-    args: props.args,
-    bootstrapUrl: props.bootstrapUrl,
-    browserAuthPath: props.browserAuthPath,
-    closeBehavior: props.closeBehavior,
-    command: props.command,
-    createRetryCount: props.createRetryCount,
-    createRetryDelayMs: props.createRetryDelayMs,
-    cwd: props.cwd,
-    env: props.env,
-    existingPtyId: props.existingPtyId,
-    fetch: props.fetch,
-    getRuntimeBrowserAuth: props.getRuntimeBrowserAuth,
-    inputBatchDelayMs: props.inputBatchDelayMs,
-    inputBatchMaxBytes: props.inputBatchMaxBytes,
-    killSignal: props.killSignal,
-    maxReconnectAttempts: props.maxReconnectAttempts,
-    reconnectRetryDelayMs: props.reconnectRetryDelayMs,
-    runtimeBaseUrl: props.runtimeBaseUrl,
-    sandboxId: props.sandboxId,
-    timeoutMs: props.timeoutMs,
-    useShell: props.useShell,
-    webSocketFactory: props.webSocketFactory,
-  };
-}
+export type HyperbrowserTerminalProps = Omit<
+  TerminalSurfaceProps,
+  "connection"
+> &
+  UseSandboxTerminalConnectionOptions;
 
 export {
   createHyperbrowserPtyConnection,
@@ -92,60 +26,53 @@ export {
   type HyperbrowserPtyConnectionOptions,
   type HyperbrowserRuntimeBrowserAuth,
   type HyperbrowserPtyStatus,
+  useSandboxTerminalConnection,
+  type UseSandboxTerminalConnectionOptions,
 };
 
-export function HyperbrowserTerminal(props: HyperbrowserTerminalProps) {
+function HyperbrowserTerminalSession(props: HyperbrowserTerminalProps) {
   const {
+    appearance,
     autoFocus,
     className,
-    fontFamily,
-    fontSize,
-    letterSpacing,
-    lineHeight,
+    chromeTheme,
     onConnectionError,
     onExit,
     onReady,
-    onStateChange,
+    onStatusChange,
+    preset,
     readOnly,
     style,
     terminalOptions,
-    theme,
+    terminalTheme,
     title,
   } = props;
 
-  const connectionFactoryRef = useRef<StableConnectionFactory | null>(null);
-  const connectionKeyRef = useRef<string>("");
-  const connectionKey = createTerminalConnectionKey(props);
-
-  if (
-    !connectionFactoryRef.current ||
-    connectionKeyRef.current !== connectionKey
-  ) {
-    connectionFactoryRef.current = {
-      connection: createHyperbrowserPtyConnection(createConnectionOptions(props)),
-    };
-    connectionKeyRef.current = connectionKey;
-  }
+  const connection = useSandboxTerminalConnection(props);
 
   return (
     <TerminalSurface
+      appearance={appearance}
       autoFocus={autoFocus}
       className={className}
-      connection={connectionFactoryRef.current.connection}
-      fontFamily={fontFamily}
-      fontSize={fontSize}
-      key={connectionKey}
-      letterSpacing={letterSpacing}
-      lineHeight={lineHeight}
+      chromeTheme={chromeTheme}
+      connection={connection}
       onConnectionError={onConnectionError}
       onExit={onExit}
       onReady={onReady}
-      onStateChange={onStateChange}
+      onStatusChange={onStatusChange}
+      preset={preset}
       readOnly={readOnly}
       style={style}
       terminalOptions={terminalOptions}
-      theme={theme}
+      terminalTheme={terminalTheme}
       title={title ?? "Hyperbrowser Terminal"}
     />
   );
+}
+
+export function HyperbrowserTerminal(props: HyperbrowserTerminalProps) {
+  const terminalKey = getSandboxTerminalConnectionIdentity(props);
+
+  return <HyperbrowserTerminalSession key={terminalKey} {...props} />;
 }
