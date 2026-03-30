@@ -1,6 +1,7 @@
 import React from 'react';
 import * as components from '../../../dist/esm/index.js';
 import { filesystemWorkspaceScenario } from '../scenarios/filesystem-workspace.scenario.js';
+import { hyperbrowserFileWorkspaceScenario } from '../scenarios/hyperbrowser-file-workspace.scenario.js';
 import { hyperbrowserTerminalScenario } from '../scenarios/hyperbrowser-terminal.scenario.js';
 import { hyperbrowserVncViewerScenario } from '../scenarios/hyperbrowser-vnc-viewer.scenario.js';
 import { hyperbrowserHlsPlaybackScenario } from '../scenarios/hyperbrowser-hls-playback.scenario.js';
@@ -10,6 +11,7 @@ import { terminalSurfaceScenario } from '../scenarios/terminal-surface.scenario.
 const scenarios = [
   smokeScenario,
   filesystemWorkspaceScenario,
+  hyperbrowserFileWorkspaceScenario,
   terminalSurfaceScenario,
   hyperbrowserTerminalScenario,
   hyperbrowserVncViewerScenario,
