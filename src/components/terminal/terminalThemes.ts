@@ -65,6 +65,64 @@ function definePreset(preset: TerminalPreset): TerminalPreset {
   return preset;
 }
 
+function createBasicDarkTheme(): ITheme {
+  return {
+    ...createAnsiPalette({
+      black: "#2e3436",
+      blue: "#3465a4",
+      brightBlack: "#555753",
+      brightBlue: "#729fcf",
+      brightCyan: "#34e2e2",
+      brightGreen: "#8ae234",
+      brightMagenta: "#ad7fa8",
+      brightRed: "#ef2929",
+      brightWhite: "#eeeeec",
+      brightYellow: "#fce94f",
+      cyan: "#06989a",
+      green: "#4e9a06",
+      magenta: "#75507b",
+      red: "#cc0000",
+      white: "#d3d7cf",
+      yellow: "#c4a000",
+    }),
+    background: "#000000",
+    cursor: "#ffffff",
+    cursorAccent: "#000000",
+    foreground: "#ffffff",
+    selectionBackground: "rgba(255, 255, 255, 0.3)",
+    selectionInactiveBackground: "rgba(255, 255, 255, 0.3)",
+  };
+}
+
+function createBasicLightTheme(): ITheme {
+  return {
+    ...createAnsiPalette({
+      black: "#2e3436",
+      blue: "#3465a4",
+      brightBlack: "#555753",
+      brightBlue: "#729fcf",
+      brightCyan: "#34e2e2",
+      brightGreen: "#8ae234",
+      brightMagenta: "#ad7fa8",
+      brightRed: "#ef2929",
+      brightWhite: "#4b5563",
+      brightYellow: "#f59e0b",
+      cyan: "#06989a",
+      green: "#4e9a06",
+      magenta: "#75507b",
+      red: "#cc0000",
+      white: "#6b7280",
+      yellow: "#c4a000",
+    }),
+    background: "#f7f7f7",
+    cursor: "#111111",
+    cursorAccent: "#f7f7f7",
+    foreground: "#111111",
+    selectionBackground: "rgba(0, 0, 0, 0.16)",
+    selectionInactiveBackground: "rgba(0, 0, 0, 0.1)",
+  };
+}
+
 function createGraphiteDarkTheme(): ITheme {
   return {
     ...createAnsiPalette({
@@ -123,7 +181,157 @@ function createGraphiteLightTheme(): ITheme {
   };
 }
 
+function createSkylineDarkTheme(): ITheme {
+  return {
+    ...createAnsiPalette({
+      black: "#102231",
+      blue: "#36b6f0",
+      brightBlack: "#5f7687",
+      brightBlue: "#7ed8ff",
+      brightCyan: "#9fe8ff",
+      brightGreen: "#7ee6a4",
+      brightMagenta: "#d8cbff",
+      brightRed: "#ff9b9b",
+      brightWhite: "#f7fcff",
+      brightYellow: "#ffd37f",
+      cyan: "#67d7ff",
+      green: "#4fd18f",
+      magenta: "#c1b2f9",
+      red: "#f87171",
+      white: "#d9edf8",
+      yellow: "#f6b453",
+    }),
+    background: "#081a24",
+    cursor: "#36b6f0",
+    cursorAccent: "#081a24",
+    foreground: "#ffffff",
+    selectionBackground: "rgba(193, 178, 249, 0.16)",
+    selectionInactiveBackground: "rgba(193, 178, 249, 0.1)",
+  };
+}
+
+function createSkylineLightTheme(): ITheme {
+  return {
+    ...createAnsiPalette({
+      black: "#143041",
+      blue: "#0484c7",
+      brightBlack: "#6f8491",
+      brightBlue: "#36b6f0",
+      brightCyan: "#5fd7f5",
+      brightGreen: "#2cc56f",
+      brightMagenta: "#ab96f2",
+      brightRed: "#f27c7c",
+      brightWhite: "#ffffff",
+      brightYellow: "#f6bf5b",
+      cyan: "#1993d3",
+      green: "#16a34a",
+      magenta: "#8f7de6",
+      red: "#dc6b6b",
+      white: "#f2fbff",
+      yellow: "#d7931f",
+    }),
+    background: "#f2fbff",
+    cursor: "#0484c7",
+    cursorAccent: "#f2fbff",
+    foreground: "#000000",
+    selectionBackground: "rgba(25, 147, 211, 0.1)",
+    selectionInactiveBackground: "rgba(25, 147, 211, 0.06)",
+  };
+}
+
+function createBreezeDarkTheme(): ITheme {
+  return {
+    ...createAnsiPalette({
+      black: "#231627",
+      blue: "#6599ff",
+      brightBlack: "#74606f",
+      brightBlue: "#90b4ff",
+      brightCyan: "#8ff4ff",
+      brightGreen: "#84f0c7",
+      brightMagenta: "#ffc1ff",
+      brightRed: "#ff7cab",
+      brightWhite: "#fff8fc",
+      brightYellow: "#ffd18a",
+      cyan: "#49e8f2",
+      green: "#55e7b2",
+      magenta: "#e9aefe",
+      red: "#f8518d",
+      white: "#f4e6ef",
+      yellow: "#f4b25d",
+    }),
+    background: "#160d1f",
+    cursor: "#f8518d",
+    cursorAccent: "#160d1f",
+    foreground: "#fff4fb",
+    selectionBackground: "rgba(248, 81, 141, 0.16)",
+    selectionInactiveBackground: "rgba(248, 81, 141, 0.1)",
+  };
+}
+
+function createBreezeLightTheme(): ITheme {
+  return {
+    ...createAnsiPalette({
+      black: "#5f5260",
+      blue: "#496eb8",
+      brightBlack: "#8c828b",
+      brightBlue: "#6b8dd1",
+      brightCyan: "#38a6af",
+      brightGreen: "#36a078",
+      brightMagenta: "#a27bad",
+      brightRed: "#da5f89",
+      brightWhite: "#5b4854",
+      brightYellow: "#d39a54",
+      cyan: "#0b7880",
+      green: "#24805e",
+      magenta: "#886594",
+      red: "#c44170",
+      white: "#745f6d",
+      yellow: "#b98332",
+    }),
+    background: "#fff5fb",
+    cursor: "#c44170",
+    cursorAccent: "#fff5fb",
+    foreground: "#5a4753",
+    selectionBackground: "rgba(196, 65, 112, 0.14)",
+    selectionInactiveBackground: "rgba(196, 65, 112, 0.08)",
+  };
+}
+
 export const terminalPresets = {
+  basic: definePreset({
+    id: "basic",
+    label: "Basic",
+    chrome: {
+      dark: {
+        accent: "#ffffff",
+        background: "#0a0a0a",
+        border: "rgba(255, 255, 255, 0.12)",
+        panel: "rgba(12, 12, 12, 0.96)",
+        panelMuted: "rgba(20, 20, 20, 0.94)",
+        shadow: "rgba(0, 0, 0, 0.42)",
+        text: "#f5f5f5",
+        textMuted: "#9ca3af",
+      },
+      light: {
+        accent: "#111111",
+        background: "#f3f4f6",
+        border: "rgba(17, 17, 17, 0.1)",
+        panel: "rgba(255, 255, 255, 0.96)",
+        panelMuted: "rgba(243, 244, 246, 0.96)",
+        shadow: "rgba(17, 17, 17, 0.08)",
+        text: "#111111",
+        textMuted: "#6b7280",
+      },
+    },
+    terminal: {
+      dark: createBasicDarkTheme(),
+      light: createBasicLightTheme(),
+    },
+    terminalOptions: {
+      cursorBlink: true,
+      cursorStyle: "block",
+    },
+  }),
   atlas: definePreset({
     id: "atlas",
     label: "Atlas",
@@ -404,6 +612,74 @@ export const terminalPresets = {
     terminal: {
       dark: createGraphiteDarkTheme(),
       light: createGraphiteLightTheme(),
+    },
+    terminalOptions: {
+      cursorBlink: true,
+      cursorStyle: "bar",
+    },
+  }),
+  skyline: definePreset({
+    id: "skyline",
+    label: "Skyline",
+    chrome: {
+      dark: {
+        accent: "#36b6f0",
+        background: "#0b2230",
+        border: "rgba(54, 182, 240, 0.18)",
+        panel: "rgba(12, 34, 48, 0.96)",
+        panelMuted: "rgba(15, 41, 58, 0.94)",
+        shadow: "rgba(3, 14, 20, 0.42)",
+        text: "#f3fbff",
+        textMuted: "#8fb2c3",
+      },
+      light: {
+        accent: "#0484c7",
+        background: "#e9f7ff",
+        border: "rgba(4, 132, 199, 0.14)",
+        panel: "rgba(255, 255, 255, 0.96)",
+        panelMuted: "rgba(236, 248, 255, 0.96)",
+        shadow: "rgba(8, 71, 103, 0.12)",
+        text: "#0a2230",
+        textMuted: "#5c7b8a",
+      },
+    },
+    terminal: {
+      dark: createSkylineDarkTheme(),
+      light: createSkylineLightTheme(),
+    },
+    terminalOptions: {
+      cursorBlink: true,
+      cursorStyle: "bar",
+    },
+  }),
+  breeze: definePreset({
+    id: "breeze",
+    label: "Breeze",
+    chrome: {
+      dark: {
+        accent: "#f8518d",
+        background: "#201129",
+        border: "rgba(248, 81, 141, 0.16)",
+        panel: "rgba(34, 18, 43, 0.96)",
+        panelMuted: "rgba(46, 23, 55, 0.94)",
+        shadow: "rgba(12, 4, 16, 0.4)",
+        text: "#fff7fc",
+        textMuted: "#b89dae",
+      },
+      light: {
+        accent: "#c44170",
+        background: "#fff1f8",
+        border: "rgba(196, 65, 112, 0.14)",
+        panel: "rgba(255, 255, 255, 0.96)",
+        panelMuted: "rgba(255, 243, 249, 0.96)",
+        shadow: "rgba(146, 66, 109, 0.12)",
+        text: "#434447",
+        textMuted: "#8c828b",
+      },
+    },
+    terminal: {
+      dark: createBreezeDarkTheme(),
+      light: createBreezeLightTheme(),
     },
     terminalOptions: {
       cursorBlink: true,

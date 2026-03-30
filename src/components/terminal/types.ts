@@ -54,10 +54,13 @@ export type TerminalChromeTheme = {
 export type TerminalAppearance = "dark" | "light";
 
 export type TerminalPresetName =
+  | "basic"
   | "atlas"
   | "paper"
   | "ember"
-  | "graphite";
+  | "graphite"
+  | "skyline"
+  | "breeze";
 
 export type TerminalOptionOverrides = Omit<
   Partial<ITerminalOptions>,
