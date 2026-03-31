@@ -18,6 +18,7 @@ const DEFAULT_CREATE_RETRY_DELAY_MS = 700;
 const DEFAULT_INPUT_BATCH_DELAY_MS = 16;
 const DEFAULT_INPUT_BATCH_MAX_BYTES = 8192;
 const DEFAULT_RECONNECT_RETRY_DELAY_MS = 1000;
+const DEFAULT_HYPERBROWSER_API_BASE_URL = "https://api.hyperbrowser.ai/api";
 
 const functionIdentityMap = new WeakMap<Function, number>();
 let nextFunctionIdentity = 1;
@@ -82,18 +83,6 @@ function serializeHeaders(
   );
 }
 
-function resolveRuntimeBaseUrl(
-  options: UseSandboxTerminalConnectionOptions,
-): string | undefined {
-  if (options.runtimeBaseUrl) {
-    return options.runtimeBaseUrl;
-  }
-  if (options.getRuntimeBrowserAuth) {
-    return undefined;
-  }
-  return options.browserAuth?.runtime.baseUrl;
-}
-
 function resolveBootstrapUrl(
   options: UseSandboxTerminalConnectionOptions,
 ): string | undefined {
@@ -106,6 +95,32 @@ function resolveBootstrapUrl(
   return options.browserAuth?.bootstrapUrl;
 }
 
+function resolveBrowserAuthEndpoint(
+  options: UseSandboxTerminalConnectionOptions,
+): string | undefined {
+  if (!options.sandboxId) {
+    return undefined;
+  }
+
+  if (options.getRuntimeBrowserAuth) {
+    return new URL(
+      `sandbox/${encodeURIComponent(options.sandboxId)}/runtime/browser-auth`,
+      `${options.apiBaseUrl ?? DEFAULT_HYPERBROWSER_API_BASE_URL}/`,
+    ).toString();
+  }
+
+  if (!options.apiBaseUrl) {
+    return undefined;
+  }
+
+  return new URL(
+    `sandbox/${encodeURIComponent(options.sandboxId)}/runtime/browser-auth`,
+    options.apiBaseUrl.endsWith("/")
+      ? options.apiBaseUrl
+      : `${options.apiBaseUrl}/`,
+  ).toString();
+}
+
 function getAuthSourceIdentity(
   options: UseSandboxTerminalConnectionOptions,
 ): string {
@@ -113,23 +128,20 @@ function getAuthSourceIdentity(
     return [
       "resolver",
       getFunctionIdentity(options.getRuntimeBrowserAuth),
-      options.runtimeBaseUrl ?? "",
+      resolveBrowserAuthEndpoint(options) ?? "",
     ].join("|");
   }
 
-  const runtimeBaseUrl = resolveRuntimeBaseUrl(options);
   const bootstrapUrl = resolveBootstrapUrl(options);
-  if (runtimeBaseUrl && bootstrapUrl) {
-    return ["direct", runtimeBaseUrl, bootstrapUrl].join("|");
+  if (bootstrapUrl) {
+    return ["direct", bootstrapUrl].join("|");
   }
 
   return [
     "api",
-    options.apiBaseUrl ?? "",
+    resolveBrowserAuthEndpoint(options) ?? "",
     options.apiCredentials ?? "",
     serializeHeaders(options.apiHeaders),
-    options.browserAuthPath ?? "",
-    options.sandboxId ?? "",
   ].join("|");
 }
 
@@ -175,7 +187,6 @@ function toPtyConnectionOptions(
   return {
     ...connectionOptions,
     bootstrapUrl: resolveBootstrapUrl(options),
-    runtimeBaseUrl: resolveRuntimeBaseUrl(options),
   };
 }
 

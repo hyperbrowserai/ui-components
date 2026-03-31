@@ -12,19 +12,19 @@ const DEFAULT_CREATE_RETRY_DELAY_MS = 700;
 const DEFAULT_RECONNECT_RETRY_DELAY_MS = 1000;
 const DEFAULT_INPUT_BATCH_DELAY_MS = 16;
 const DEFAULT_INPUT_BATCH_MAX_BYTES = 8192;
-
-type HyperbrowserRuntimeTarget = {
-  baseUrl: string;
-  host?: string;
-  transport?: string;
-};
+const DEFAULT_HYPERBROWSER_API_BASE_URL = "https://api.hyperbrowser.ai/api";
 
 export type HyperbrowserRuntimeBrowserAuth = {
   allowedOrigin?: string;
   bootstrapUrl: string;
   bootstrapUrlExpiresAt?: string | null;
   capabilities?: string[];
-  runtime: HyperbrowserRuntimeTarget;
+};
+
+export type HyperbrowserPtyBrowserAuthParams = {
+  browserAuthEndpoint?: string;
+  sandboxId?: string;
+  signal: AbortSignal;
 };
 
 export type HyperbrowserPtyStatus = {
@@ -42,9 +42,9 @@ export type HyperbrowserPtyStatus = {
   timedOut?: boolean;
 };
 
-export type HyperbrowserPtyBrowserAuthResolver = (params: {
-  signal: AbortSignal;
-}) => Promise<HyperbrowserRuntimeBrowserAuth>;
+export type HyperbrowserPtyBrowserAuthResolver = (
+  params: HyperbrowserPtyBrowserAuthParams
+) => Promise<HyperbrowserRuntimeBrowserAuth>;
 
 export type HyperbrowserPtyConnectionOptions = {
   apiBaseUrl?: string;
@@ -52,7 +52,6 @@ export type HyperbrowserPtyConnectionOptions = {
   apiHeaders?: HeadersInit | (() => HeadersInit | Promise<HeadersInit>);
   args?: string[];
   bootstrapUrl?: string;
-  browserAuthPath?: string;
   closeBehavior?: "disconnect" | "terminate";
   command?: string;
   createRetryCount?: number;
@@ -67,7 +66,6 @@ export type HyperbrowserPtyConnectionOptions = {
   killSignal?: string;
   maxReconnectAttempts?: number;
   reconnectRetryDelayMs?: number;
-  runtimeBaseUrl?: string;
   sandboxId?: string;
   timeoutMs?: number;
   useShell?: boolean;
@@ -98,7 +96,7 @@ type HyperbrowserPtyServerEvent =
   | HyperbrowserPtyExitEvent;
 
 type HyperbrowserResolvedRuntimeAccess = {
-  bootstrapUrl?: string;
+  bootstrapUrl: string;
   runtimeBaseUrl: string;
 };
 
@@ -153,6 +151,46 @@ function resolveUrl(baseUrl: string, path: string): URL {
     normalizedBaseUrl.pathname = `${normalizedBaseUrl.pathname}/`;
   }
   return new URL(path.replace(/^\/+/, ""), normalizedBaseUrl);
+}
+
+function resolveAbsoluteUrl(input: string): URL {
+  try {
+    return new URL(input);
+  } catch {
+    if (typeof window !== "undefined" && window.location) {
+      return new URL(input, window.location.href);
+    }
+
+    throw new Error("Hyperbrowser PTY bootstrap URL must be absolute outside the browser.");
+  }
+}
+
+function deriveRuntimeBaseUrl(bootstrapUrl: string): string {
+  return resolveAbsoluteUrl(bootstrapUrl).origin;
+}
+
+function resolveBrowserAuthEndpoint(
+  options: HyperbrowserPtyConnectionOptions
+): string | undefined {
+  if (!options.sandboxId) {
+    return undefined;
+  }
+
+  if (options.getRuntimeBrowserAuth) {
+    return resolveUrl(
+      options.apiBaseUrl ?? DEFAULT_HYPERBROWSER_API_BASE_URL,
+      `sandbox/${encodeURIComponent(options.sandboxId)}/runtime/browser-auth`
+    ).toString();
+  }
+
+  if (!options.apiBaseUrl) {
+    return undefined;
+  }
+
+  return resolveUrl(
+    options.apiBaseUrl,
+    `sandbox/${encodeURIComponent(options.sandboxId)}/runtime/browser-auth`
+  ).toString();
 }
 
 function toWebSocketUrl(baseUrl: string, path: string, query?: URLSearchParams): string {
@@ -270,33 +308,31 @@ async function fetchRuntimeBrowserAuth(
   options: HyperbrowserPtyConnectionOptions,
   signal: AbortSignal
 ): Promise<HyperbrowserBrowserAuthResponse> {
+  const browserAuthEndpoint = resolveBrowserAuthEndpoint(options);
+
   if (options.getRuntimeBrowserAuth) {
-    return options.getRuntimeBrowserAuth({ signal });
+    return options.getRuntimeBrowserAuth({
+      browserAuthEndpoint,
+      sandboxId: options.sandboxId,
+      signal,
+    });
   }
 
-  if (options.runtimeBaseUrl && options.bootstrapUrl) {
+  if (options.bootstrapUrl) {
     return {
       bootstrapUrl: options.bootstrapUrl,
-      runtime: {
-        baseUrl: options.runtimeBaseUrl,
-      },
     };
   }
 
-  if (!options.apiBaseUrl || !options.sandboxId) {
+  if (!browserAuthEndpoint) {
     throw new Error(
-      "Hyperbrowser PTY transport requires either getRuntimeBrowserAuth, runtimeBaseUrl + bootstrapUrl, or apiBaseUrl + sandboxId."
+      "Hyperbrowser PTY transport requires either getRuntimeBrowserAuth, bootstrapUrl, or apiBaseUrl + sandboxId."
     );
   }
 
   const fetchImpl = resolveFetchImplementation(options.fetch);
   const headers = await resolveHeaders(options.apiHeaders);
-  const endpoint = resolveUrl(
-    options.apiBaseUrl,
-    options.browserAuthPath ??
-      `sandbox/${encodeURIComponent(options.sandboxId)}/runtime/browser-auth`
-  );
-  const response = await fetchImpl(endpoint.toString(), {
+  const response = await fetchImpl(browserAuthEndpoint, {
     credentials: options.apiCredentials ?? "include",
     headers,
     method: "POST",
@@ -730,20 +766,12 @@ class HyperbrowserPtySession implements TerminalSession {
 
   private async bootstrapRuntimeAuth(): Promise<void> {
     const runtimeAuth = await fetchRuntimeBrowserAuth(this.options, this.abortSignal);
-    const runtimeBaseUrl =
-      this.options.runtimeBaseUrl ?? runtimeAuth.runtime.baseUrl;
-    if (!runtimeBaseUrl) {
-      throw new Error("Runtime browser auth response did not include a runtime base URL.");
-    }
+    const runtimeBaseUrl = deriveRuntimeBaseUrl(runtimeAuth.bootstrapUrl);
 
     this.runtimeAccess = {
       bootstrapUrl: runtimeAuth.bootstrapUrl,
       runtimeBaseUrl,
     };
-
-    if (!runtimeAuth.bootstrapUrl) {
-      return;
-    }
 
     const response = await this.fetchImpl(runtimeAuth.bootstrapUrl, {
       credentials: "include",

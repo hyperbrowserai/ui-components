@@ -8,18 +8,10 @@ export {
 } from "./components/HyperbrowserVncViewer";
 
 export {
-  HyperbrowserFileWorkspace,
-  createHyperbrowserFilesystemAdapter,
-  type HyperbrowserFileWorkspaceProps,
-  type HyperbrowserFilesystemAdapterOptions,
-  type HyperbrowserFilesystemBrowserAuthResolver,
-  type HyperbrowserRuntimeBrowserAuth as HyperbrowserFilesystemRuntimeBrowserAuth,
-} from "./components/hyperbrowser/HyperbrowserFileWorkspace";
-
-export {
   HyperbrowserTerminal,
   createHyperbrowserPtyConnection,
   useSandboxTerminalConnection,
+  type HyperbrowserPtyBrowserAuthParams,
   type HyperbrowserPtyBrowserAuthResolver,
   type HyperbrowserPtyConnectionOptions,
   type HyperbrowserPtyStatus,
@@ -27,19 +19,6 @@ export {
   type HyperbrowserTerminalProps,
   type UseSandboxTerminalConnectionOptions,
 } from "./components/hyperbrowser/HyperbrowserTerminal";
-
-export { FileWorkspace } from "./components/filesystem/FileWorkspace";
-
-export {
-  configureMonacoLoader,
-  getConfiguredMonacoVsPath,
-} from "./components/filesystem/monaco-loader";
-
-export {
-  defaultFileWorkspaceTheme,
-  fileWorkspaceThemePresets,
-  resolveFileWorkspaceTheme,
-} from "./components/filesystem/fileWorkspaceThemes";
 
 export {
   useHyperbrowserHlsPlayback,
@@ -61,20 +40,6 @@ export {
   resolveTerminalTheme,
   terminalPresets,
 } from "./components/terminal/terminalThemes";
-
-export type {
-  FileDirectoryListing,
-  FileDocument,
-  FileEntry,
-  FileEntryType,
-  FileWorkspaceAdapter,
-  FileWorkspaceChromeTheme,
-  FileWorkspaceEditorTheme,
-  FileWorkspaceProps,
-  FileWorkspaceTheme,
-  FileWorkspaceThemeName,
-  ResolvedFileWorkspaceTheme,
-} from "./components/filesystem/types";
 
 export type {
   ResolvedTerminalTheme,

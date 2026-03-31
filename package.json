@@ -22,7 +22,6 @@
       "default": "./dist/esm/index.js"
     },
     "./terminal-core.css": "./dist/styles/terminal-core.css",
-    "./filesystem.css": "./dist/styles/filesystem.css",
     "./terminal.css": "./dist/styles/terminal.css",
     "./package.json": "./package.json"
   },

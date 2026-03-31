@@ -1,10 +1,9 @@
-import { cp, mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const distStylesDir = path.join(rootDir, "dist", "styles");
-const distMonacoDir = path.join(rootDir, "dist", "monaco");
 const sourceTerminalCoreStylesPath = path.join(
   rootDir,
   "src",
@@ -12,7 +11,6 @@ const sourceTerminalCoreStylesPath = path.join(
   "terminal-core.css"
 );
 const sourceTerminalStylesPath = path.join(rootDir, "src", "styles", "terminal.css");
-const sourceFilesystemStylesPath = path.join(rootDir, "src", "styles", "filesystem.css");
 const xtermStylesPath = path.join(
   rootDir,
   "node_modules",
@@ -21,22 +19,15 @@ const xtermStylesPath = path.join(
   "css",
   "xterm.css"
 );
-const monacoVsPath = path.join(rootDir, "node_modules", "monaco-editor", "min", "vs");
-const distMonacoVsPath = path.join(distMonacoDir, "vs");
 const terminalCoreStylesPath = path.join(distStylesDir, "terminal-core.css");
 const terminalStylesPath = path.join(distStylesDir, "terminal.css");
-const filesystemStylesPath = path.join(distStylesDir, "filesystem.css");
 
-await Promise.all([
-  mkdir(distStylesDir, { recursive: true }),
-  mkdir(distMonacoDir, { recursive: true }),
-]);
+await mkdir(distStylesDir, { recursive: true });
 
-const [xtermStyles, terminalCoreStyles, terminalStyles, filesystemStyles] = await Promise.all([
+const [xtermStyles, terminalCoreStyles, terminalStyles] = await Promise.all([
   readFile(xtermStylesPath, "utf8"),
   readFile(sourceTerminalCoreStylesPath, "utf8"),
   readFile(sourceTerminalStylesPath, "utf8"),
-  readFile(sourceFilesystemStylesPath, "utf8"),
 ]);
 
 await Promise.all([
@@ -50,6 +41,4 @@ await Promise.all([
     `${xtermStyles.trim()}\n\n${terminalCoreStyles.trim()}\n\n${terminalStyles.trim()}\n`,
     "utf8"
   ),
-  writeFile(filesystemStylesPath, `${filesystemStyles.trim()}\n`, "utf8"),
-  cp(monacoVsPath, distMonacoVsPath, { recursive: true }),
 ]);

@@ -3,6 +3,7 @@ import { TerminalSurface } from "../terminal/TerminalSurface";
 import type { TerminalSurfaceProps } from "../terminal/types";
 import {
   createHyperbrowserPtyConnection,
+  type HyperbrowserPtyBrowserAuthParams,
   type HyperbrowserPtyBrowserAuthResolver,
   type HyperbrowserPtyConnectionOptions,
   type HyperbrowserPtyStatus,
@@ -22,6 +23,7 @@ export type HyperbrowserTerminalProps = Omit<
 
 export {
   createHyperbrowserPtyConnection,
+  type HyperbrowserPtyBrowserAuthParams,
   type HyperbrowserPtyBrowserAuthResolver,
   type HyperbrowserPtyConnectionOptions,
   type HyperbrowserRuntimeBrowserAuth,

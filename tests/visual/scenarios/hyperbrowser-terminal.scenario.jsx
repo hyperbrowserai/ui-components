@@ -194,7 +194,6 @@ function HyperbrowserTerminalDemo({
   const [sandboxId, setSandboxId] = React.useState("");
   const [apiBaseUrl, setApiBaseUrl] = React.useState(DEFAULT_API_BASE_URL);
   const [apiToken, setApiToken] = React.useState("");
-  const [runtimeBaseUrl, setRuntimeBaseUrl] = React.useState("");
   const [bootstrapUrl, setBootstrapUrl] = React.useState("");
   const [command, setCommand] = React.useState(DEFAULT_COMMAND);
   const [cwd, setCwd] = React.useState("");
@@ -232,7 +231,6 @@ function HyperbrowserTerminalDemo({
       closeBehavior: appliedConfig.closeBehavior,
       command: appliedConfig.command,
       cwd: appliedConfig.cwd || undefined,
-      runtimeBaseUrl: appliedConfig.runtimeBaseUrl,
     };
   }, [appliedConfig]);
 
@@ -240,7 +238,7 @@ function HyperbrowserTerminalDemo({
   const canLaunch =
     mode === "api"
       ? Boolean(sandboxId.trim() && apiBaseUrl.trim())
-      : Boolean(runtimeBaseUrl.trim() && bootstrapUrl.trim());
+      : Boolean(bootstrapUrl.trim());
 
   const applyConnectionValues = () => {
     if (!canLaunch) {
@@ -258,7 +256,6 @@ function HyperbrowserTerminalDemo({
       cwd: cwd.trim(),
       mode,
       preset,
-      runtimeBaseUrl: runtimeBaseUrl.trim(),
       sandboxId: sandboxId.trim(),
     });
     setLaunchCount((value) => value + 1);
@@ -271,7 +268,6 @@ function HyperbrowserTerminalDemo({
     setSandboxId("");
     setApiBaseUrl(DEFAULT_API_BASE_URL);
     setApiToken("");
-    setRuntimeBaseUrl("");
     setBootstrapUrl("");
     setCommand(DEFAULT_COMMAND);
     setCwd("");
@@ -409,20 +405,9 @@ function HyperbrowserTerminalDemo({
             style={{
               display: "grid",
               gap: "0.9rem",
-              gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+              gridTemplateColumns: "minmax(260px, 1fr)",
             }}
           >
-            <ControlLabel>
-              Runtime base URL
-              <input
-                autoComplete="off"
-                value={runtimeBaseUrl}
-                onChange={(event) => setRuntimeBaseUrl(event.target.value)}
-                placeholder="https://<session>.<region>.hyperbrowser.run"
-                style={inputStyle}
-                type="text"
-              />
-            </ControlLabel>
             <ControlLabel>
               Bootstrap URL
               <input
@@ -502,8 +487,7 @@ function HyperbrowserTerminalDemo({
           </button>
           <span style={{ color: "#334155", fontSize: "0.92rem" }}>
             API mode calls `/sandbox/:id/runtime/browser-auth` directly. Runtime
-            mode only needs a live sandbox runtime plus a precomputed bootstrap
-            URL.
+            mode only needs a precomputed bootstrap URL.
           </span>
         </div>
         <div
@@ -531,13 +515,13 @@ function HyperbrowserTerminalDemo({
             {appliedConfig
               ? appliedConfig.mode === "api"
                 ? `API ${appliedConfig.apiBaseUrl} -> sandbox ${appliedConfig.sandboxId}`
-                : `Runtime ${appliedConfig.runtimeBaseUrl}`
+                : `Bootstrap ${appliedConfig.bootstrapUrl}`
               : "Edit the fields above, then click Launch terminal to apply a stable connection snapshot."}
           </div>
           <div style={{ fontSize: "0.92rem" }}>
             {mode === "api"
               ? "API mode needs a reachable control-plane API and auth via bearer token or browser cookies."
-              : "Runtime mode skips the control-plane API. Paste the runtime base URL and bootstrap URL from an already-running sandbox."}
+              : "Runtime mode skips the control-plane API. Paste the bootstrap URL from an already-running sandbox."}
           </div>
         </div>
         <p style={{ color: "#475569", fontSize: "0.92rem", margin: 0 }}>

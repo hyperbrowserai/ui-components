@@ -7,5 +7,10 @@
     "declarationMap": true,
     "emitDeclarationOnly": true,
     "sourceMap": false
-  }
+  },
+  "exclude": [
+    "src/components/filesystem/**/*",
+    "src/components/hyperbrowser/HyperbrowserFileWorkspace.tsx",
+    "src/components/hyperbrowser/hyperbrowser-filesystem-adapter.ts"
+  ]
 }

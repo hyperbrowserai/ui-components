@@ -24,8 +24,6 @@ This folder is for manual visual verification of UI components.
 
 - `smoke.example.jsx`: Validates package exports are discoverable.
 - `terminal-primitives.scenario.jsx`: Manual test surface for `BaseTerminal` and `useTerminal` with customer-owned shell chrome.
-- `filesystem-workspace.scenario.jsx`: Manual test surface for the generic filesystem workspace and Monaco integration.
-- `hyperbrowser-file-workspace.scenario.jsx`: Live manual test surface for `HyperbrowserFileWorkspace` against a real sandbox.
 - `hyperbrowser-terminal.scenario.jsx`: Manual test surface for `HyperbrowserTerminal` plus the custom-shell path using `useSandboxTerminalConnection` and `useTerminal`.
 - `hyperbrowser-vnc-viewer.scenario.jsx`: Interactive manual test for `HyperbrowserVncViewer`.
 - `hyperbrowser-hls-playback.scenario.jsx`: Interactive manual test for `useHyperbrowserHlsPlayback`.
