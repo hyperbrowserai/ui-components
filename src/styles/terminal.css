@@ -4,6 +4,7 @@
   --hb-terminal-border: rgba(108, 224, 202, 0.22);
   --hb-terminal-panel: rgba(9, 22, 26, 0.94);
   --hb-terminal-panel-muted: rgba(12, 30, 35, 0.88);
+  --hb-terminal-screen-background: #050c0f;
   --hb-terminal-shadow: rgba(2, 8, 10, 0.48);
   --hb-terminal-text: #e5fbf5;
   --hb-terminal-text-muted: #8cabaa;
@@ -15,9 +16,21 @@
   border: 1px solid var(--hb-terminal-border);
   border-radius: 1.4rem;
   background:
-    radial-gradient(circle at top left, color-mix(in srgb, var(--hb-terminal-accent) 24%, transparent), transparent 42%),
-    radial-gradient(circle at bottom right, color-mix(in srgb, var(--hb-terminal-accent) 14%, transparent), transparent 38%),
-    linear-gradient(145deg, color-mix(in srgb, var(--hb-terminal-background) 88%, #ffffff 12%), var(--hb-terminal-background));
+    radial-gradient(
+      circle at top left,
+      color-mix(in srgb, var(--hb-terminal-accent) 24%, transparent),
+      transparent 42%
+    ),
+    radial-gradient(
+      circle at bottom right,
+      color-mix(in srgb, var(--hb-terminal-accent) 14%, transparent),
+      transparent 38%
+    ),
+    linear-gradient(
+      145deg,
+      color-mix(in srgb, var(--hb-terminal-background) 88%, #ffffff 12%),
+      var(--hb-terminal-background)
+    );
   box-shadow:
     0 24px 80px var(--hb-terminal-shadow),
     inset 0 1px 0 color-mix(in srgb, var(--hb-terminal-accent) 18%, transparent);
@@ -29,8 +42,17 @@
   inset: 0;
   pointer-events: none;
   background:
-    linear-gradient(180deg, color-mix(in srgb, var(--hb-terminal-accent) 14%, transparent), transparent 24%),
-    linear-gradient(90deg, transparent, color-mix(in srgb, var(--hb-terminal-accent) 7%, transparent), transparent);
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--hb-terminal-accent) 14%, transparent),
+      transparent 24%
+    ),
+    linear-gradient(
+      90deg,
+      transparent,
+      color-mix(in srgb, var(--hb-terminal-accent) 7%, transparent),
+      transparent
+    );
   opacity: 0.8;
 }
 
@@ -52,11 +74,13 @@
 
 .hb-terminal__header {
   justify-content: space-between;
-  border-bottom: 1px solid color-mix(in srgb, var(--hb-terminal-border) 80%, transparent);
+  border-bottom: 1px solid
+    color-mix(in srgb, var(--hb-terminal-border) 80%, transparent);
 }
 
 .hb-terminal__footer {
-  border-top: 1px solid color-mix(in srgb, var(--hb-terminal-border) 70%, transparent);
+  border-top: 1px solid
+    color-mix(in srgb, var(--hb-terminal-border) 70%, transparent);
   justify-content: space-between;
 }
 
@@ -112,7 +136,8 @@
 
 .hb-terminal__status {
   flex-shrink: 0;
-  border: 1px solid color-mix(in srgb, var(--hb-terminal-accent) 30%, transparent);
+  border: 1px solid
+    color-mix(in srgb, var(--hb-terminal-accent) 30%, transparent);
   border-radius: 999px;
   padding: 0.28rem 0.6rem;
   font-size: 0.72rem;
@@ -123,13 +148,13 @@
   background: color-mix(in srgb, var(--hb-terminal-accent) 14%, transparent);
 }
 
-.hb-terminal__status[data-state="error"] {
+.hb-terminal__status[data-status="error"] {
   color: #ffe3d9;
   background: rgba(255, 111, 97, 0.2);
   border-color: rgba(255, 111, 97, 0.34);
 }
 
-.hb-terminal__status[data-state="closed"] {
+.hb-terminal__status[data-status="closed"] {
   color: color-mix(in srgb, var(--hb-terminal-text) 84%, #ffffff 16%);
   background: color-mix(in srgb, var(--hb-terminal-panel) 86%, #ffffff 14%);
 }
@@ -139,6 +164,7 @@
   z-index: 1;
   min-height: 0;
   padding: 0.55rem;
+  background: var(--hb-terminal-screen-background);
 }
 
 .hb-terminal__screen {
@@ -146,9 +172,9 @@
   min-height: 18rem;
   overflow: hidden;
   border-radius: 1rem;
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--hb-terminal-background) 90%, #ffffff 10%), var(--hb-terminal-background));
-  outline: 1px solid color-mix(in srgb, var(--hb-terminal-border) 75%, transparent);
+  background: var(--hb-terminal-screen-background);
+  outline: 1px solid
+    color-mix(in srgb, var(--hb-terminal-border) 75%, transparent);
   outline-offset: -1px;
 }
 
@@ -160,7 +186,12 @@
 
 .hb-terminal__screen .xterm-viewport {
   background: transparent;
-  scrollbar-color: color-mix(in srgb, var(--hb-terminal-accent) 55%, transparent) transparent;
+  scrollbar-color: color-mix(
+      in srgb,
+      var(--hb-terminal-accent) 55%,
+      transparent
+    )
+    transparent;
 }
 
 .hb-terminal__screen .xterm-screen,
@@ -174,7 +205,11 @@
   display: grid;
   place-items: center;
   border-radius: 1rem;
-  background: color-mix(in srgb, var(--hb-terminal-background) 78%, transparent);
+  background: color-mix(
+    in srgb,
+    var(--hb-terminal-screen-background) 78%,
+    transparent
+  );
   backdrop-filter: blur(12px);
   color: var(--hb-terminal-text);
   font-size: 0.88rem;

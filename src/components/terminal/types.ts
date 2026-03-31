@@ -1,4 +1,4 @@
-import type { CSSProperties } from "react";
+import type { CSSProperties, MutableRefObject } from "react";
 import type { ITerminalOptions, ITheme, Terminal } from "@xterm/xterm";
 
 export type TerminalSize = {
@@ -11,7 +11,7 @@ export type TerminalExitEvent = {
   error?: string;
 };
 
-export type TerminalState =
+export type TerminalStatus =
   | "idle"
   | "connecting"
   | "ready"
@@ -51,42 +51,81 @@ export type TerminalChromeTheme = {
   textMuted: string;
 };
 
+export type TerminalAppearance = "dark" | "light";
+
+export type TerminalPresetName =
+  | "basic"
+  | "atlas"
+  | "paper"
+  | "ember"
+  | "graphite"
+  | "skyline"
+  | "breeze";
+
+export type TerminalOptionOverrides = Omit<
+  Partial<ITerminalOptions>,
+  "cols" | "rows" | "disableStdin" | "theme"
+>;
+
+export type TerminalPreset = {
+  chrome: Record<TerminalAppearance, TerminalChromeTheme>;
+  id: TerminalPresetName;
+  label: string;
+  terminal: Record<TerminalAppearance, ITheme>;
+  terminalOptions?: Pick<ITerminalOptions, "cursorBlink" | "cursorStyle">;
+};
+
 export type ResolvedTerminalTheme = {
+  appearance: TerminalAppearance;
   chrome: TerminalChromeTheme;
   id: string;
   label: string;
   terminal: ITheme;
-  terminalOptions?: Pick<
-    ITerminalOptions,
-    "cursorBlink" | "cursorStyle" | "fontFamily" | "fontSize" | "letterSpacing" | "lineHeight"
-  >;
+  terminalOptions?: Pick<ITerminalOptions, "cursorBlink" | "cursorStyle">;
 };
 
-export type TerminalTheme = Partial<ResolvedTerminalTheme> & {
-  id?: string;
-  label?: string;
+export type TerminalTheme = {
+  appearance?: TerminalAppearance;
+  preset?: TerminalPresetName;
+  terminalOptions?: TerminalOptionOverrides;
+  terminalTheme?: Partial<ITheme>;
 };
 
-export type TerminalThemeName = string;
+export type TerminalSurfaceTheme = TerminalTheme & {
+  chromeTheme?: Partial<TerminalChromeTheme>;
+};
 
-export type TerminalSurfaceProps = {
+type TerminalBehaviorProps = {
   autoFocus?: boolean;
-  className?: string;
   connection: TerminalConnection;
-  fontFamily?: string;
-  fontSize?: number;
-  letterSpacing?: number;
-  lineHeight?: number;
   onConnectionError?: (message: string) => void;
   onExit?: (event: TerminalExitEvent) => void;
   onReady?: (terminal: Terminal) => void;
-  onStateChange?: (state: TerminalState) => void;
+  onStatusChange?: (status: TerminalStatus) => void;
+  appearance?: TerminalAppearance;
+  preset?: TerminalPresetName;
   readOnly?: boolean;
+  terminalOptions?: TerminalOptionOverrides;
+  terminalTheme?: Partial<ITheme>;
+};
+
+export type TerminalSurfaceProps = TerminalBehaviorProps & {
+  chromeTheme?: Partial<TerminalChromeTheme>;
+  className?: string;
   style?: CSSProperties;
-  terminalOptions?: Omit<
-    Partial<ITerminalOptions>,
-    "cols" | "rows" | "disableStdin" | "fontFamily" | "fontSize" | "letterSpacing" | "lineHeight" | "theme"
-  >;
-  theme?: TerminalTheme | TerminalThemeName;
   title?: string;
+};
+
+export type UseTerminalOptions = TerminalBehaviorProps;
+
+export type UseTerminalResult = {
+  errorMessage: string | null;
+  status: TerminalStatus;
+  terminal: Terminal | null;
+  viewportRef: MutableRefObject<HTMLDivElement | null>;
+};
+
+export type BaseTerminalProps = UseTerminalOptions & {
+  className?: string;
+  style?: CSSProperties;
 };

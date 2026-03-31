@@ -6,5 +6,10 @@
     "outDir": "dist/cjs",
     "declaration": false,
     "sourceMap": true
-  }
+  },
+  "exclude": [
+    "src/components/filesystem/**/*",
+    "src/components/hyperbrowser/HyperbrowserFileWorkspace.tsx",
+    "src/components/hyperbrowser/hyperbrowser-filesystem-adapter.ts"
+  ]
 }
