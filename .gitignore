@@ -78,6 +78,9 @@ web_modules/
 .next
 out
 
+# Local planning docs
+docs/
+
 # Nuxt.js build / generate output
 .nuxt
 dist
