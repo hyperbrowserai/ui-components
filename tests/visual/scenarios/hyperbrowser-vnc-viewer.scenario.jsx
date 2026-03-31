@@ -3,12 +3,10 @@ import React from "react";
 const DEFAULT_CONNECT_URL = "https://connect-us-central-1.hyperbrowser.ai";
 
 function HyperbrowserVncViewerDemo({ HyperbrowserVncViewer }) {
-  const [draftToken, setDraftToken] = React.useState(
-    "PASTE_SESSION_TOKEN_HERE",
-  );
+  const [draftToken, setDraftToken] = React.useState("");
   const [draftConnectUrl, setDraftConnectUrl] =
     React.useState(DEFAULT_CONNECT_URL);
-  const [token, setToken] = React.useState("PASTE_SESSION_TOKEN_HERE");
+  const [token, setToken] = React.useState("");
   const [connectUrl, setConnectUrl] = React.useState(DEFAULT_CONNECT_URL);
   const [connectAttempt, setConnectAttempt] = React.useState(0);
   const [disableFocusOnConnect, setDisableFocusOnConnect] =
@@ -41,6 +39,8 @@ function HyperbrowserVncViewerDemo({ HyperbrowserVncViewer }) {
         <label style={{ display: "grid", gap: "0.4rem", fontWeight: 600 }}>
           Token
           <input
+            autoComplete="off"
+            placeholder="Paste session token"
             value={draftToken}
             onChange={(event) => setDraftToken(event.target.value)}
             type="text"

@@ -4,20 +4,14 @@ const DEFAULT_API_BASE_URL = "https://api.hyperbrowser.ai";
 
 function HyperbrowserHlsPlaybackDemo({ useHyperbrowserHlsPlayback }) {
   const videoRef = React.useRef(null);
-  const [draftSessionId, setDraftSessionId] = React.useState(
-    "PASTE_SESSION_ID_HERE",
-  );
-  const [draftSessionToken, setDraftSessionToken] = React.useState(
-    "PASTE_SESSION_TOKEN_HERE",
-  );
+  const [draftSessionId, setDraftSessionId] = React.useState("");
+  const [draftSessionToken, setDraftSessionToken] = React.useState("");
   const [draftApiBaseUrl, setDraftApiBaseUrl] =
     React.useState(DEFAULT_API_BASE_URL);
   const [sourceType, setSourceType] = React.useState("auto");
   const [enabled, setEnabled] = React.useState(true);
-  const [sessionId, setSessionId] = React.useState("PASTE_SESSION_ID_HERE");
-  const [sessionToken, setSessionToken] = React.useState(
-    "PASTE_SESSION_TOKEN_HERE",
-  );
+  const [sessionId, setSessionId] = React.useState("");
+  const [sessionToken, setSessionToken] = React.useState("");
   const [apiBaseUrl, setApiBaseUrl] = React.useState(DEFAULT_API_BASE_URL);
   const [lastEvent, setLastEvent] = React.useState("idle");
   const [connectAttempt, setConnectAttempt] = React.useState(0);
@@ -59,6 +53,8 @@ function HyperbrowserHlsPlaybackDemo({ useHyperbrowserHlsPlayback }) {
         <label style={{ display: "grid", gap: "0.4rem", fontWeight: 600 }}>
           Session ID
           <input
+            autoComplete="off"
+            placeholder="Paste session ID"
             value={draftSessionId}
             onChange={(event) => setDraftSessionId(event.target.value)}
             type="text"
@@ -73,6 +69,8 @@ function HyperbrowserHlsPlaybackDemo({ useHyperbrowserHlsPlayback }) {
         <label style={{ display: "grid", gap: "0.4rem", fontWeight: 600 }}>
           Session Token
           <input
+            autoComplete="off"
+            placeholder="Paste session token"
             value={draftSessionToken}
             onChange={(event) => setDraftSessionToken(event.target.value)}
             type="password"
