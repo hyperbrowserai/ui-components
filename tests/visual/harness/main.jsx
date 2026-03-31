@@ -1,4 +1,3 @@
-import "../../../dist/styles/filesystem.css";
 import "../../../dist/styles/terminal.css";
 import { createRoot } from "react-dom/client";
 import { VisualHarness } from "./registry.jsx";
