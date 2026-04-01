@@ -19,8 +19,10 @@ const xtermStylesPath = path.join(
   "css",
   "xterm.css"
 );
-const terminalCoreStylesPath = path.join(distStylesDir, "terminal-core.css");
-const terminalStylesPath = path.join(distStylesDir, "terminal.css");
+const terminalCoreBundle = (xtermStyles, terminalCoreStyles) =>
+  `${xtermStyles.trim()}\n\n${terminalCoreStyles.trim()}\n`;
+const terminalBundle = (xtermStyles, terminalCoreStyles, terminalStyles) =>
+  `${terminalCoreBundle(xtermStyles, terminalCoreStyles).trim()}\n\n${terminalStyles.trim()}\n`;
 
 await mkdir(distStylesDir, { recursive: true });
 
@@ -32,13 +34,18 @@ const [xtermStyles, terminalCoreStyles, terminalStyles] = await Promise.all([
 
 await Promise.all([
   writeFile(
-    terminalCoreStylesPath,
-    `${xtermStyles.trim()}\n\n${terminalCoreStyles.trim()}\n`,
+    path.join(distStylesDir, "terminal-core.css"),
+    terminalCoreBundle(xtermStyles, terminalCoreStyles),
     "utf8"
   ),
   writeFile(
-    terminalStylesPath,
-    `${xtermStyles.trim()}\n\n${terminalCoreStyles.trim()}\n\n${terminalStyles.trim()}\n`,
+    path.join(distStylesDir, "terminal.css"),
+    terminalBundle(xtermStyles, terminalCoreStyles, terminalStyles),
+    "utf8"
+  ),
+  writeFile(
+    path.join(distStylesDir, "styles.css"),
+    terminalBundle(xtermStyles, terminalCoreStyles, terminalStyles),
     "utf8"
   ),
 ]);

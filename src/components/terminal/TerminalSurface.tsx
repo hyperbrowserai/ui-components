@@ -10,35 +10,13 @@ function toStatusLabel(status: TerminalStatus): string {
     case "connecting":
       return "Connecting";
     case "ready":
-      return "Live";
+      return "Connected";
     case "closed":
       return "Closed";
     case "error":
-      return "Issue";
+      return "Error";
     default:
       return "Idle";
-  }
-}
-
-function toFooterMessage(
-  status: TerminalStatus,
-  errorMessage: string | null,
-): string {
-  if (errorMessage) {
-    return errorMessage;
-  }
-
-  switch (status) {
-    case "connecting":
-      return "Establishing terminal session";
-    case "ready":
-      return "Ready for input";
-    case "closed":
-      return "Session closed";
-    case "error":
-      return "Terminal connection failed";
-    default:
-      return "Session idle";
   }
 }
 
@@ -83,7 +61,7 @@ export function TerminalSurface({
     terminalOptions,
     terminalTheme,
   });
-  const { errorMessage, status, viewportRef } = useTerminal({
+  const { status, viewportRef } = useTerminal({
     appearance,
     autoFocus,
     connection,
@@ -112,13 +90,7 @@ export function TerminalSurface({
     >
       <div aria-hidden="true" className="hb-terminal__glow" />
       <header className="hb-terminal__header">
-        <div aria-hidden="true" className="hb-terminal__traffic">
-          <span />
-          <span />
-          <span />
-        </div>
         <div className="hb-terminal__titleBlock">
-          <p className="hb-terminal__eyebrow">{resolvedTheme.label}</p>
           <h2 className="hb-terminal__title">{title}</h2>
         </div>
         <div className="hb-terminal__status" data-status={status}>
@@ -137,15 +109,6 @@ export function TerminalSurface({
           </div>
         ) : null}
       </div>
-
-      <footer className="hb-terminal__footer">
-        <span className="hb-terminal__footerLabel">
-          {readOnly ? "Read only" : "Interactive"}
-        </span>
-        <span className="hb-terminal__footerMeta">
-          {toFooterMessage(status, errorMessage)}
-        </span>
-      </footer>
     </section>
   );
 }

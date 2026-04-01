@@ -29,11 +29,14 @@ The public terminal path is built from three pieces:
 - `BaseTerminal`: renders a ready-to-use xterm viewport
 - `useTerminal(...)`: lower-level hook when you want to own the surrounding shell chrome
 
-For the terminal primitives, import the core stylesheet once:
+Import the packaged stylesheet once in your app entrypoint:
 
 ```tsx
-import "@hyperbrowser/ui/terminal-core.css";
+import "@hyperbrowser/ui/styles.css";
 ```
+
+The package also exposes `@hyperbrowser/ui/terminal-core.css` and
+`@hyperbrowser/ui/terminal.css` if you want a narrower stylesheet.
 
 ### Backend auth contract
 
@@ -67,7 +70,7 @@ import {
   type HyperbrowserPtyBrowserAuthParams,
   useSandboxTerminalConnection,
 } from "@hyperbrowser/ui";
-import "@hyperbrowser/ui/terminal-core.css";
+import "@hyperbrowser/ui/styles.css";
 
 export function SandboxTerminal({
   sandboxId,
@@ -133,7 +136,7 @@ import {
   useSandboxTerminalConnection,
   useTerminal,
 } from "@hyperbrowser/ui";
-import "@hyperbrowser/ui/terminal-core.css";
+import "@hyperbrowser/ui/styles.css";
 
 export function SandboxTerminalPanel({
   sandboxId,
@@ -223,7 +226,7 @@ Notes:
 - When `sandboxId` is provided to `useSandboxTerminalConnection(...)`, the hook passes the library-defined Hyperbrowser browser-auth endpoint for that sandbox.
 - `apiBaseUrl` is an optional override for local development or staging. It only changes the base server URL; the browser-auth path suffix is still owned by the library.
 - With `useTerminal(...)`, the element using `viewportRef` should include
-`className="hb-terminal-base"` if you want the packaged base terminal styles.
+`className="hb-terminal-base"` if you want the packaged base terminal layout styles.
 - `status` is one of `idle`, `connecting`, `ready`, `closed`, or `error`.
 - The hook returns the raw `xterm` instance as `terminal` for optional imperative
 actions like `focus()`.
@@ -332,4 +335,3 @@ and
 
 - ESM: `import { ... } from '@hyperbrowser/ui'`
 - CJS: `const ui = require('@hyperbrowser/ui')`
-
