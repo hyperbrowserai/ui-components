@@ -21,7 +21,16 @@ export type FileDirectoryListing = {
   entries: FileEntry[];
 };
 
-export type FileDocument = {
+export type FilePreviewKind =
+  | "text"
+  | "image"
+  | "audio"
+  | "video"
+  | "pdf"
+  | "binary";
+
+export type FileTextPreview = {
+  kind: "text";
   path: string;
   contents: string;
   contentType?: string;
@@ -29,13 +38,36 @@ export type FileDocument = {
   language?: string;
   readOnly?: boolean;
   readOnlyReason?: string;
+  size?: number;
   truncated?: boolean;
 };
 
+export type FileAssetPreview = {
+  kind: "image" | "audio" | "video" | "pdf";
+  path: string;
+  contentType?: string;
+  expiresAt?: number;
+  name?: string;
+  size?: number;
+  url: string;
+};
+
+export type FileBinaryPreview = {
+  kind: "binary";
+  path: string;
+  contentType?: string;
+  name?: string;
+  readOnlyReason?: string;
+  reason?: string;
+  size?: number;
+};
+
+export type FilePreview = FileTextPreview | FileAssetPreview | FileBinaryPreview;
+
 export type FileWorkspaceAdapter = {
   listDirectory(path: string): Promise<FileDirectoryListing>;
+  previewFile(path: string): Promise<FilePreview>;
   stat(path: string): Promise<FileEntry>;
-  readFile(path: string): Promise<FileDocument>;
   writeFile?: (path: string, contents: string) => Promise<void>;
   createFile?: (path: string, contents?: string) => Promise<void>;
   createDirectory?: (path: string) => Promise<void>;
@@ -87,7 +119,6 @@ export type FileWorkspaceThemeName = string;
 export type FileWorkspaceProps = {
   adapter: FileWorkspaceAdapter;
   className?: string;
-  initialPath?: string;
   onCreateDirectory?: (path: string) => void;
   onCreateFile?: (path: string) => void;
   onDelete?: (path: string) => void;
@@ -95,8 +126,10 @@ export type FileWorkspaceProps = {
   onOpenFile?: (path: string) => void;
   onRename?: (path: string, nextPath: string) => void;
   onSaveFile?: (path: string) => void;
+  onWorkspacePathChange?: (path: string) => void;
   readOnly?: boolean;
   style?: CSSProperties;
   theme?: FileWorkspaceTheme | FileWorkspaceThemeName;
   title?: string;
+  workspacePath?: string;
 };

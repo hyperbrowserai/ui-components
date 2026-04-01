@@ -83,7 +83,6 @@ export function HyperbrowserFileWorkspace(
     <FileWorkspace
       adapter={adapterFactoryRef.current.adapter}
       className={props.className}
-      initialPath={props.initialPath ?? "/"}
       onCreateDirectory={props.onCreateDirectory}
       onCreateFile={props.onCreateFile}
       onDelete={props.onDelete}
@@ -91,10 +90,12 @@ export function HyperbrowserFileWorkspace(
       onOpenFile={props.onOpenFile}
       onRename={props.onRename}
       onSaveFile={props.onSaveFile}
+      onWorkspacePathChange={props.onWorkspacePathChange}
       readOnly={props.readOnly}
       style={props.style}
       theme={props.theme}
       title={props.title ?? "Hyperbrowser Filesystem"}
+      workspacePath={props.workspacePath}
     />
   );
 }

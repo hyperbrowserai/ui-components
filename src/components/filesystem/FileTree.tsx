@@ -147,6 +147,10 @@ export function FileTree({
     expandedPathSet,
     normalizeFilePath(rootPath)
   );
+  const selectedPathVisible = selectedPath
+    ? visibleItems.some((item) => item.entry.path === selectedPath)
+    : false;
+  const fallbackFocusablePath = visibleItems[0]?.entry.path ?? null;
 
   function focusPath(path: string) {
     rowRefs.current[path]?.focus();
@@ -286,7 +290,7 @@ export function FileTree({
               }}
               tabIndex={
                 selectedPath === item.entry.path ||
-                (selectedPath === null && item.entry.path === "/")
+                (!selectedPathVisible && fallbackFocusablePath === item.entry.path)
                   ? 0
                   : -1
               }

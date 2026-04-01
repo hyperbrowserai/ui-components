@@ -11,7 +11,7 @@ import {
   normalizeFilePath,
 } from "./filePath";
 import { resolveFileWorkspaceTheme } from "./fileWorkspaceThemes";
-import type { FileDocument, FileEntry, FileWorkspaceProps } from "./types";
+import type { FileEntry, FilePreview, FileWorkspaceProps } from "./types";
 
 function toThemeStyle(
   theme: ReturnType<typeof resolveFileWorkspaceTheme>
@@ -43,14 +43,18 @@ function toErrorMessage(error: unknown): string {
   return "An unexpected filesystem error occurred.";
 }
 
-function resolveExplorerRootPath(path: string): string {
-  const normalizedPath = normalizeFilePath(path);
-  if (normalizedPath === "/") {
-    return "/";
+function isPathNotFoundError(error: unknown): boolean {
+  if (!(error instanceof Error)) {
+    return false;
   }
 
-  const [segment] = normalizedPath.split("/").filter(Boolean);
-  return segment ? `/${segment}` : "/";
+  const message = error.message.toLowerCase();
+  return (
+    message.includes("not found") ||
+    message.includes("no such file") ||
+    message.includes("no such directory") ||
+    message.includes("enoent")
+  );
 }
 
 function sortEntries(entries: FileEntry[]): FileEntry[] {
@@ -159,22 +163,51 @@ function toWorkspaceLabel(path: string): string {
   return getBaseName(normalizedPath);
 }
 
+function getExpandedWorkspacePaths(
+  workspacePath: string,
+  activeDocumentPath: string | null
+): string[] {
+  const nextPaths = new Set(getAncestorPaths(workspacePath));
+
+  if (!activeDocumentPath || !isPathWithin(workspacePath, activeDocumentPath)) {
+    return Array.from(nextPaths);
+  }
+
+  for (const ancestor of getAncestorPaths(getDirName(activeDocumentPath))) {
+    if (ancestor === "/" || isPathWithin(workspacePath, ancestor)) {
+      nextPaths.add(ancestor);
+    }
+  }
+
+  return Array.from(nextPaths);
+}
+
+type DirectoryLoadOptions = {
+  reportError?: boolean;
+  throwOnError?: boolean;
+};
+
 export function FileWorkspace({
   adapter,
   className,
-  initialPath = "/",
   onError,
   onOpenFile,
+  onWorkspacePathChange,
   style,
   theme,
   title = "Filesystem Browser",
+  workspacePath,
 }: FileWorkspaceProps) {
   const resolvedTheme = resolveFileWorkspaceTheme(theme);
-  const derivedWorkspaceRootPath = resolveExplorerRootPath(initialPath);
+  const controlledWorkspacePath =
+    workspacePath == null ? null : normalizeFilePath(workspacePath);
   const adapterRef = useRef(adapter);
   const mountedRef = useRef(true);
   const workspacePickerRef = useRef<HTMLDivElement | null>(null);
   const workspacePickerRequestRef = useRef(0);
+  const documentRequestRef = useRef(0);
+  const activeDocumentRef = useRef<FilePreview | null>(null);
+  const activeDocumentPathRef = useRef<string | null>(null);
   const [activeDocumentPath, setActiveDocumentPath] = useState<string | null>(null);
   const [directoryChildren, setDirectoryChildren] = useState<Record<string, FileEntry[]>>({});
   const [entryIndex, setEntryIndex] = useState<Record<string, FileEntry>>({
@@ -185,23 +218,28 @@ export function FileWorkspace({
     },
   });
   const [expandedPaths, setExpandedPaths] = useState<string[]>(["/"]);
-  const [loadingDirectories, setLoadingDirectories] = useState<string[]>(["/"]);
-  const [activeDocument, setActiveDocument] = useState<FileDocument | null>(null);
+  const [loadingDirectories, setLoadingDirectories] = useState<string[]>([]);
+  const [activeDocument, setActiveDocument] = useState<FilePreview | null>(null);
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [copyState, setCopyState] = useState<"idle" | "copied">("idle");
-  const [workspaceRootPath, setWorkspaceRootPath] = useState(derivedWorkspaceRootPath);
+  const [uncontrolledWorkspacePath, setUncontrolledWorkspacePath] = useState(
+    controlledWorkspacePath ?? "/"
+  );
   const [isWorkspacePickerOpen, setIsWorkspacePickerOpen] = useState(false);
   const [workspaceDraftPath, setWorkspaceDraftPath] = useState(
-    toDirectoryInputValue(derivedWorkspaceRootPath)
+    toDirectoryInputValue(controlledWorkspacePath ?? "/")
   );
-  const [workspaceBrowserPath, setWorkspaceBrowserPath] = useState(derivedWorkspaceRootPath);
+  const [workspaceBrowserPath, setWorkspaceBrowserPath] = useState(controlledWorkspacePath ?? "/");
   const [workspacePickerOptions, setWorkspacePickerOptions] = useState<
     WorkspacePickerOption[]
   >([]);
   const [workspacePickerError, setWorkspacePickerError] = useState<string | null>(null);
   const [workspacePickerLoading, setWorkspacePickerLoading] = useState(false);
+  const resolvedWorkspacePath = controlledWorkspacePath ?? uncontrolledWorkspacePath;
 
   adapterRef.current = adapter;
+  activeDocumentRef.current = activeDocument;
+  activeDocumentPathRef.current = activeDocumentPath;
 
   useEffect(() => {
     mountedRef.current = true;
@@ -210,11 +248,17 @@ export function FileWorkspace({
     };
   }, []);
 
+  useEffect(() => {
+    if (controlledWorkspacePath !== null) {
+      setUncontrolledWorkspacePath(controlledWorkspacePath);
+    }
+  }, [controlledWorkspacePath]);
+
   function pushError(message: string) {
     onError?.(message);
   }
 
-  async function statPath(path: string): Promise<FileEntry | null> {
+  async function statPath(path: string): Promise<FileEntry> {
     const normalizedPath = normalizeFilePath(path);
     if (normalizedPath === "/") {
       return {
@@ -224,11 +268,7 @@ export function FileWorkspace({
       };
     }
 
-    try {
-      return await adapterRef.current.stat(normalizedPath);
-    } catch {
-      return null;
-    }
+    return await adapterRef.current.stat(normalizedPath);
   }
 
   function mergeEntries(entries: FileEntry[]) {
@@ -241,7 +281,10 @@ export function FileWorkspace({
     });
   }
 
-  async function loadDirectory(path: string): Promise<FileEntry[]> {
+  async function loadDirectory(
+    path: string,
+    options?: DirectoryLoadOptions
+  ): Promise<FileEntry[]> {
     const normalizedPath = normalizeFilePath(path);
     setLoadingDirectories((current) =>
       current.includes(normalizedPath) ? current : [...current, normalizedPath]
@@ -281,7 +324,12 @@ export function FileWorkspace({
 
       return sortedEntries;
     } catch (error) {
-      pushError(toErrorMessage(error));
+      if (options?.reportError !== false) {
+        pushError(toErrorMessage(error));
+      }
+      if (options?.throwOnError) {
+        throw error;
+      }
       return [];
     } finally {
       if (mountedRef.current) {
@@ -292,17 +340,25 @@ export function FileWorkspace({
     }
   }
 
-  async function ensureDirectoryLoaded(path: string): Promise<void> {
+  async function ensureDirectoryLoaded(
+    path: string,
+    options?: DirectoryLoadOptions
+  ): Promise<void> {
     const normalizedPath = normalizeFilePath(path);
     if (directoryChildren[normalizedPath]) {
       return;
     }
-    await loadDirectory(normalizedPath);
+    await loadDirectory(normalizedPath, options);
   }
 
   async function listWorkspacePickerOptions(path: string): Promise<WorkspacePickerOption[]> {
     const normalizedPath = normalizeFilePath(path);
-    const entries = directoryChildren[normalizedPath] ?? (await loadDirectory(normalizedPath));
+    const entries =
+      directoryChildren[normalizedPath] ??
+      (await loadDirectory(normalizedPath, {
+        reportError: false,
+        throwOnError: true,
+      }));
     const nextOptions: WorkspacePickerOption[] = [];
 
     if (normalizedPath !== "/") {
@@ -354,7 +410,7 @@ export function FileWorkspace({
   async function validateWorkspacePickerPath(inputPath: string): Promise<boolean> {
     const requestId = ++workspacePickerRequestRef.current;
     const trimmedPath = inputPath.trim();
-    const normalizedInput = trimmedPath ? normalizeFilePath(trimmedPath) : workspaceRootPath;
+    const normalizedInput = trimmedPath ? normalizeFilePath(trimmedPath) : resolvedWorkspacePath;
 
     setWorkspacePickerLoading(true);
 
@@ -366,8 +422,7 @@ export function FileWorkspace({
         nextError = "Enter an absolute folder path.";
       } else {
         const entry = await statPath(normalizedInput);
-        if (entry?.type === "directory") {
-          exactDirectory = true;
+        if (entry.type === "directory") {
           const nextOptions = await listWorkspacePickerOptions(normalizedInput);
 
           if (requestId !== workspacePickerRequestRef.current || !mountedRef.current) {
@@ -376,14 +431,15 @@ export function FileWorkspace({
 
           setWorkspaceBrowserPath(normalizedInput);
           setWorkspacePickerOptions(nextOptions);
-        } else if (entry?.type === "file") {
+          exactDirectory = true;
+        } else if (entry.type === "file") {
           nextError = "Please enter a folder path.";
-        } else {
-          nextError = "Please enter a path that exists.";
         }
       }
     } catch (error) {
-      nextError = toErrorMessage(error);
+      nextError = isPathNotFoundError(error)
+        ? "Please enter a path that exists."
+        : toErrorMessage(error);
     }
 
     if (requestId !== workspacePickerRequestRef.current || !mountedRef.current) {
@@ -395,42 +451,44 @@ export function FileWorkspace({
     return exactDirectory;
   }
 
-  async function expandDirectoryChain(path: string): Promise<void> {
-    const ancestors = getAncestorPaths(path);
-    for (const ancestor of ancestors) {
-      setExpandedPaths((current) =>
-        current.includes(ancestor) ? current : [...current, ancestor]
-      );
-      await ensureDirectoryLoaded(ancestor);
-    }
-  }
-
   async function loadDocument(path: string, options?: { force?: boolean }) {
     const normalizedPath = normalizeFilePath(path);
+    const requestId = ++documentRequestRef.current;
 
     setSelectedPath(normalizedPath);
     setActiveDocumentPath(normalizedPath);
     onOpenFile?.(normalizedPath);
 
-    if (activeDocumentPath === normalizedPath && activeDocument && !options?.force) {
+    if (
+      activeDocumentPathRef.current === normalizedPath &&
+      activeDocumentRef.current &&
+      !options?.force
+    ) {
       return;
     }
 
     try {
-      const document = await adapterRef.current.readFile(normalizedPath);
-      if (!mountedRef.current) {
+      const document = await adapterRef.current.previewFile(normalizedPath);
+      if (requestId !== documentRequestRef.current || !mountedRef.current) {
         return;
       }
 
-      setActiveDocument({
-        ...document,
-        language:
-          document.language ??
-          entryIndex[normalizedPath]?.language ??
-          inferLanguageFromPath(normalizedPath),
-        path: normalizedPath,
-      });
+      if (document.kind === "text") {
+        setActiveDocument({
+          ...document,
+          language:
+            document.language ??
+            entryIndex[normalizedPath]?.language ??
+            inferLanguageFromPath(normalizedPath),
+        });
+        return;
+      }
+
+      setActiveDocument(document);
     } catch (error) {
+      if (requestId !== documentRequestRef.current || !mountedRef.current) {
+        return;
+      }
       pushError(toErrorMessage(error));
     }
   }
@@ -438,27 +496,28 @@ export function FileWorkspace({
   useEffect(() => {
     let active = true;
 
-    setWorkspaceRootPath(derivedWorkspaceRootPath);
-    setWorkspaceDraftPath(toDirectoryInputValue(derivedWorkspaceRootPath));
-    setWorkspaceBrowserPath(derivedWorkspaceRootPath);
+    workspacePickerRequestRef.current += 1;
+    documentRequestRef.current += 1;
+    setWorkspaceDraftPath(toDirectoryInputValue(resolvedWorkspacePath));
+    setWorkspaceBrowserPath(resolvedWorkspacePath);
     setWorkspacePickerError(null);
+    setWorkspacePickerLoading(false);
+    setWorkspacePickerOptions([]);
     setIsWorkspacePickerOpen(false);
 
     async function initializeWorkspace() {
-      await loadDirectory("/");
-      if (!active || !mountedRef.current) {
-        return;
-      }
-
-      const normalizedInitialPath = normalizeFilePath(initialPath);
-      if (normalizedInitialPath === "/") {
-        setSelectedPath("/");
-        return;
-      }
-
       try {
-        const entry = await adapterRef.current.stat(normalizedInitialPath);
+        const entry = await statPath(resolvedWorkspacePath);
         if (!active || !mountedRef.current) {
+          return;
+        }
+
+        if (entry.type !== "directory") {
+          pushError("Workspace path must point to a folder.");
+          setActiveDocument(null);
+          setActiveDocumentPath(null);
+          setSelectedPath(null);
+          setExpandedPaths(["/"]);
           return;
         }
 
@@ -470,26 +529,47 @@ export function FileWorkspace({
           },
         }));
 
-        if (entry.type === "directory") {
-          await expandDirectoryChain(entry.path);
+        const nextExpandedPaths = getExpandedWorkspacePaths(
+          resolvedWorkspacePath,
+          activeDocumentRef.current ? activeDocumentPathRef.current : null
+        );
+        setExpandedPaths(nextExpandedPaths);
+
+        for (const ancestor of nextExpandedPaths) {
+          await ensureDirectoryLoaded(ancestor, {
+            reportError: false,
+            throwOnError: true,
+          });
           if (!active || !mountedRef.current) {
             return;
           }
-          setActiveDocument(null);
-          setActiveDocumentPath(null);
-          setSelectedPath(entry.path);
+        }
+
+        if (
+          activeDocumentRef.current &&
+          activeDocumentPathRef.current &&
+          isPathWithin(resolvedWorkspacePath, activeDocumentPathRef.current)
+        ) {
+          setSelectedPath(activeDocumentPathRef.current);
           return;
         }
 
-        const parentPath = getDirName(entry.path);
-        await expandDirectoryChain(parentPath);
+        setActiveDocument(null);
+        setActiveDocumentPath(null);
+        setSelectedPath(null);
+      } catch (error) {
         if (!active || !mountedRef.current) {
           return;
         }
-
-        await loadDocument(entry.path, { force: true });
-      } catch (error) {
-        pushError(toErrorMessage(error));
+        pushError(
+          isPathNotFoundError(error)
+            ? `Workspace path does not exist: ${resolvedWorkspacePath}`
+            : toErrorMessage(error)
+        );
+        setActiveDocument(null);
+        setActiveDocumentPath(null);
+        setSelectedPath(null);
+        setExpandedPaths(["/"]);
       }
     }
 
@@ -498,7 +578,7 @@ export function FileWorkspace({
     return () => {
       active = false;
     };
-  }, [derivedWorkspaceRootPath, initialPath]);
+  }, [resolvedWorkspacePath]);
 
   useEffect(() => {
     if (!isWorkspacePickerOpen) {
@@ -567,12 +647,20 @@ export function FileWorkspace({
     }
   }
 
+  function setWorkspacePathValue(path: string) {
+    const normalizedPath = normalizeFilePath(path);
+    if (controlledWorkspacePath === null) {
+      setUncontrolledWorkspacePath(normalizedPath);
+    }
+    onWorkspacePathChange?.(normalizedPath);
+  }
+
   function openWorkspacePicker() {
-    setWorkspaceDraftPath(toDirectoryInputValue(workspaceRootPath));
-    setWorkspaceBrowserPath(workspaceRootPath);
+    setWorkspaceDraftPath(toDirectoryInputValue(resolvedWorkspacePath));
+    setWorkspaceBrowserPath(resolvedWorkspacePath);
     setWorkspacePickerError(null);
     setIsWorkspacePickerOpen(true);
-    void showWorkspacePickerDirectory(workspaceRootPath);
+    void showWorkspacePickerDirectory(resolvedWorkspacePath);
   }
 
   function handleWorkspaceOptionClick(option: WorkspacePickerOption) {
@@ -587,26 +675,7 @@ export function FileWorkspace({
       return;
     }
 
-    const nextWorkspaceRootPath = normalizeFilePath(workspaceDraftPath);
-    await ensureDirectoryLoaded(nextWorkspaceRootPath);
-
-    if (activeDocumentPath && isPathWithin(nextWorkspaceRootPath, activeDocumentPath)) {
-      await expandDirectoryChain(getDirName(activeDocumentPath));
-      const visibleAncestors = getAncestorPaths(getDirName(activeDocumentPath)).filter(
-        (path) => path === "/" || isPathWithin(nextWorkspaceRootPath, path)
-      );
-      setExpandedPaths(
-        Array.from(new Set(["/", nextWorkspaceRootPath, ...visibleAncestors]))
-      );
-      setSelectedPath(activeDocumentPath);
-    } else {
-      setExpandedPaths(Array.from(new Set(["/", nextWorkspaceRootPath])));
-      setSelectedPath(nextWorkspaceRootPath);
-      setActiveDocument(null);
-      setActiveDocumentPath(null);
-    }
-
-    setWorkspaceRootPath(nextWorkspaceRootPath);
+    setWorkspacePathValue(workspaceDraftPath);
     setIsWorkspacePickerOpen(false);
   }
 
@@ -634,14 +703,14 @@ export function FileWorkspace({
                 }
                 openWorkspacePicker();
               }}
-              title={workspaceRootPath}
+              title={resolvedWorkspacePath}
               type="button"
             >
               <span className="hb-filesystem__workspaceTriggerIcon">
                 <WorkspaceIcon />
               </span>
               <span className="hb-filesystem__workspaceTriggerText">
-                {toWorkspaceLabel(workspaceRootPath)}
+                {toWorkspaceLabel(resolvedWorkspacePath)}
               </span>
               <ChevronDownIcon open={isWorkspacePickerOpen} />
             </button>
@@ -763,7 +832,7 @@ export function FileWorkspace({
             onToggleDirectory={(path) => {
               void handleToggleDirectory(path);
             }}
-            rootPath={workspaceRootPath}
+            rootPath={resolvedWorkspacePath}
             selectedPath={selectedPath}
           />
         </aside>

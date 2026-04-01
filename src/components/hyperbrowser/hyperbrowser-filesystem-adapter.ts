@@ -1,9 +1,9 @@
-import { inferLanguageFromPath, isTextLikeContentType } from "../filesystem/fileLanguage";
+import { inferLanguageFromPath } from "../filesystem/fileLanguage";
 import { normalizeFilePath } from "../filesystem/filePath";
 import type {
   FileDirectoryListing,
-  FileDocument,
   FileEntry,
+  FilePreview,
   FileWorkspaceAdapter,
 } from "../filesystem/types";
 
@@ -59,12 +59,21 @@ type HyperbrowserStatWireResponse = {
   file: HyperbrowserFileInfoWire;
 };
 
-type HyperbrowserReadWireResponse = {
-  bytesRead: number;
-  content: string;
+type HyperbrowserPreviewWirePayload = {
+  content?: string;
   contentType?: string;
   encoding?: string;
-  truncated?: boolean;
+  expiresAt?: number;
+  kind: string;
+  name?: string;
+  path: string;
+  reason?: string;
+  size?: number;
+  url?: string;
+};
+
+type HyperbrowserPreviewWireResponse = {
+  preview: HyperbrowserPreviewWirePayload;
 };
 
 class HyperbrowserRequestError extends Error {
@@ -128,6 +137,73 @@ function toEntry(entry: HyperbrowserFileInfoWire): FileEntry {
     size: entry.size,
     symlinkTarget: entry.symlinkTarget,
     type: normalizeFileType(entry.type),
+  };
+}
+
+function parsePreviewKind(kind: string): FilePreview["kind"] {
+  switch (kind) {
+    case "text":
+    case "image":
+    case "audio":
+    case "video":
+    case "pdf":
+    case "binary":
+      return kind;
+    default:
+      throw new HyperbrowserRequestError(`Unsupported preview kind: ${kind}`);
+  }
+}
+
+function toPreview(
+  preview: HyperbrowserPreviewWirePayload,
+  fallbackPath: string
+): FilePreview {
+  const normalizedPath = normalizeFilePath(preview.path || fallbackPath);
+  const kind = parsePreviewKind(preview.kind);
+
+  if (kind === "text") {
+    if (typeof preview.content !== "string") {
+      throw new HyperbrowserRequestError(
+        `Text preview for ${normalizedPath} did not include content.`
+      );
+    }
+
+    return {
+      contentType: preview.contentType,
+      contents: preview.content,
+      encoding: preview.encoding,
+      kind,
+      language: inferLanguageFromPath(normalizedPath),
+      path: normalizedPath,
+      size: preview.size,
+    };
+  }
+
+  if (kind === "image" || kind === "audio" || kind === "video" || kind === "pdf") {
+    if (typeof preview.url !== "string" || preview.url.length === 0) {
+      throw new HyperbrowserRequestError(
+        `${kind} preview for ${normalizedPath} did not include a URL.`
+      );
+    }
+
+    return {
+      contentType: preview.contentType,
+      expiresAt: preview.expiresAt,
+      kind,
+      name: preview.name,
+      path: normalizedPath,
+      size: preview.size,
+      url: preview.url,
+    };
+  }
+
+  return {
+    contentType: preview.contentType,
+    kind: "binary",
+    name: preview.name,
+    path: normalizedPath,
+    reason: preview.reason,
+    size: preview.size,
   };
 }
 
@@ -268,7 +344,7 @@ export function createHyperbrowserFilesystemAdapter(
     return readJsonResponse<T>(response, `Request failed for ${path}.`);
   }
 
-  return {
+  const adapter: FileWorkspaceAdapter = {
     async createDirectory(path: string): Promise<void> {
       await requestJson("/sandbox/files/mkdir", {
         body: JSON.stringify({
@@ -325,13 +401,12 @@ export function createHyperbrowserFilesystemAdapter(
       };
     },
 
-    async readFile(path: string): Promise<FileDocument> {
+    async previewFile(path: string): Promise<FilePreview> {
       const normalizedPath = normalizeFilePath(path);
-      const response = await requestJson<HyperbrowserReadWireResponse>(
-        "/sandbox/files/read",
+      const response = await requestJson<HyperbrowserPreviewWireResponse>(
+        "/sandbox/files/preview",
         {
           body: JSON.stringify({
-            encoding: "utf8",
             path: normalizedPath,
           }),
           headers: {
@@ -341,32 +416,7 @@ export function createHyperbrowserFilesystemAdapter(
         }
       );
 
-      const isTextDocument = isTextLikeContentType(response.contentType);
-      if (!isTextDocument) {
-        return {
-          contentType: response.contentType,
-          contents: "",
-          encoding: response.encoding,
-          language: inferLanguageFromPath(normalizedPath),
-          path: normalizedPath,
-          readOnly: true,
-          readOnlyReason: "Binary file preview is not available in v1.",
-          truncated: Boolean(response.truncated),
-        };
-      }
-
-      return {
-        contentType: response.contentType,
-        contents: response.content,
-        encoding: response.encoding,
-        language: inferLanguageFromPath(normalizedPath),
-        path: normalizedPath,
-        readOnly: Boolean(response.truncated),
-        readOnlyReason: response.truncated
-          ? "This file exceeded the runtime read limit and is read-only in v1."
-          : undefined,
-        truncated: Boolean(response.truncated),
-      };
+      return toPreview(response.preview, normalizedPath);
     },
 
     async rename(path: string, nextPath: string): Promise<void> {
@@ -409,4 +459,6 @@ export function createHyperbrowserFilesystemAdapter(
       });
     },
   };
+
+  return adapter;
 }

@@ -1,7 +1,7 @@
 import React from "react";
 
 const DEFAULT_API_BASE_URL = "http://localhost:8080/api";
-const DEFAULT_INITIAL_PATH = "/";
+const DEFAULT_WORKSPACE_PATH = "/";
 
 const inputStyle = {
   border: "1px solid #cbd5e1",
@@ -61,7 +61,7 @@ function HyperbrowserFileWorkspaceDemo({
   const [apiToken, setApiToken] = React.useState("");
   const [runtimeBaseUrl, setRuntimeBaseUrl] = React.useState("");
   const [bootstrapUrl, setBootstrapUrl] = React.useState("");
-  const [initialPath, setInitialPath] = React.useState(DEFAULT_INITIAL_PATH);
+  const [workspacePath, setWorkspacePath] = React.useState(DEFAULT_WORKSPACE_PATH);
   const [appliedConfig, setAppliedConfig] = React.useState(null);
   const [launchCount, setLaunchCount] = React.useState(0);
   const [latestEvent, setLatestEvent] = React.useState("Idle.");
@@ -83,15 +83,15 @@ function HyperbrowserFileWorkspaceDemo({
               Authorization: `Bearer ${appliedConfig.apiToken}`,
             }
           : undefined,
-        initialPath: appliedConfig.initialPath || DEFAULT_INITIAL_PATH,
         sandboxId: appliedConfig.sandboxId,
+        workspacePath: appliedConfig.workspacePath || DEFAULT_WORKSPACE_PATH,
       };
     }
 
     return {
       bootstrapUrl: appliedConfig.bootstrapUrl,
-      initialPath: appliedConfig.initialPath || DEFAULT_INITIAL_PATH,
       runtimeBaseUrl: appliedConfig.runtimeBaseUrl,
+      workspacePath: appliedConfig.workspacePath || DEFAULT_WORKSPACE_PATH,
     };
   }, [appliedConfig]);
 
@@ -111,11 +111,11 @@ function HyperbrowserFileWorkspaceDemo({
       apiBaseUrl: apiBaseUrl.trim(),
       apiToken: apiToken.trim(),
       bootstrapUrl: bootstrapUrl.trim(),
-      initialPath: initialPath.trim() || DEFAULT_INITIAL_PATH,
       mode,
       runtimeBaseUrl: runtimeBaseUrl.trim(),
       sandboxId: sandboxId.trim(),
       theme,
+      workspacePath: workspacePath.trim() || DEFAULT_WORKSPACE_PATH,
     });
     setLaunchCount((value) => value + 1);
   };
@@ -128,7 +128,7 @@ function HyperbrowserFileWorkspaceDemo({
     setApiToken("");
     setRuntimeBaseUrl("");
     setBootstrapUrl("");
-    setInitialPath(DEFAULT_INITIAL_PATH);
+    setWorkspacePath(DEFAULT_WORKSPACE_PATH);
     setAppliedConfig(null);
     setLaunchCount(0);
     setLatestEvent("Idle.");
@@ -170,11 +170,11 @@ function HyperbrowserFileWorkspaceDemo({
             </select>
           </ControlLabel>
           <ControlLabel>
-            Initial path
+            Workspace path
             <input
               autoComplete="off"
-              value={initialPath}
-              onChange={(event) => setInitialPath(event.target.value)}
+              value={workspacePath}
+              onChange={(event) => setWorkspacePath(event.target.value)}
               placeholder="/"
               style={inputStyle}
               type="text"
@@ -364,9 +364,15 @@ function HyperbrowserFileWorkspaceDemo({
           {
             <HyperbrowserFileWorkspace
               {...activeConfig}
-              key={`${launchCount}:${appliedConfig.theme}:${appliedConfig.initialPath}`}
+              key={launchCount}
               onError={(message) => setLatestEvent(`Error: ${message}`)}
               onOpenFile={(path) => setLatestEvent(`Opened: ${path}`)}
+              onWorkspacePathChange={(path) => {
+                setAppliedConfig((current) =>
+                  current ? { ...current, workspacePath: path } : current
+                );
+                setLatestEvent(`Workspace: ${path}`);
+              }}
               style={{ minHeight: "780px" }}
               theme={appliedConfig.theme}
               title="Hyperbrowser File Browser"

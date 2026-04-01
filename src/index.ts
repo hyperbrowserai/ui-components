@@ -59,9 +59,10 @@ export {
 
 export type {
   FileDirectoryListing,
-  FileDocument,
   FileEntry,
   FileEntryType,
+  FilePreview,
+  FilePreviewKind,
   FileWorkspaceAdapter,
   FileWorkspaceChromeTheme,
   FileWorkspaceEditorTheme,
