@@ -22,7 +22,7 @@
   color: var(--hb-filesystem-text);
   display: grid;
   gap: 0;
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-rows: minmax(0, 1fr);
   min-height: 680px;
   overflow: hidden;
 }
@@ -149,11 +149,182 @@
   min-height: 0;
 }
 
-.hb-filesystem__sidebarTitle {
-  color: #475569;
+.hb-filesystem__workspaceSwitcher {
+  flex: 1 1 auto;
+  min-width: 0;
+  position: relative;
+}
+
+.hb-filesystem__workspaceTrigger {
+  align-items: center;
+  background: #ffffff;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: var(--hb-filesystem-text);
+  cursor: pointer;
+  display: inline-flex;
+  gap: 0.45rem;
+  justify-content: flex-start;
+  min-width: 0;
+  padding: 0.32rem 0.5rem;
+  text-align: left;
+  width: 100%;
+}
+
+.hb-filesystem__workspaceTrigger:hover,
+.hb-filesystem__workspaceTrigger:focus-visible {
+  background: var(--hb-filesystem-row-hover);
+  border-color: rgba(37, 99, 235, 0.14);
+  outline: none;
+}
+
+.hb-filesystem__workspaceTriggerIcon,
+.hb-filesystem__workspaceOptionIcon {
+  color: #64748b;
+  display: inline-flex;
+  flex: 0 0 auto;
+}
+
+.hb-filesystem__workspaceTriggerIcon svg,
+.hb-filesystem__workspaceOptionIcon svg {
+  display: block;
+  height: 0.9rem;
+  width: 0.9rem;
+}
+
+.hb-filesystem__workspaceTriggerText {
+  flex: 1 1 auto;
   font-size: 0.88rem;
   font-weight: 600;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hb-filesystem__workspaceTriggerChevron {
+  color: #64748b;
+  display: block;
+  flex: 0 0 auto;
+  height: 0.85rem;
+  transition: transform 140ms ease;
+  width: 0.85rem;
+}
+
+.hb-filesystem__workspaceTriggerChevron[data-open="true"] {
+  transform: rotate(180deg);
+}
+
+.hb-filesystem__workspaceMenu {
+  background: #ffffff;
+  border: 1px solid var(--hb-filesystem-border);
+  border-radius: 12px;
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.18);
+  display: grid;
+  gap: 0.5rem;
+  left: 0;
+  padding: 0.55rem;
+  position: absolute;
+  top: calc(100% + 0.35rem);
+  width: min(28rem, calc(100vw - 2rem));
+  z-index: 30;
+}
+
+.hb-filesystem__workspaceMenuHeader {
+  align-items: center;
+  display: flex;
+  gap: 0.6rem;
+  justify-content: space-between;
+}
+
+.hb-filesystem__workspaceMenuTitle {
+  color: #475569;
+  font-size: 0.8rem;
+  font-weight: 650;
+}
+
+.hb-filesystem__workspaceMenuConfirm {
+  align-items: center;
+  background: #0f172a;
+  border: 0;
+  border-radius: 8px;
+  color: #ffffff;
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 0.76rem;
+  font-weight: 600;
+  height: 1.9rem;
+  justify-content: center;
+  min-width: 2.6rem;
+  padding: 0 0.72rem;
+}
+
+.hb-filesystem__workspaceMenuConfirm:hover,
+.hb-filesystem__workspaceMenuConfirm:focus-visible {
+  background: #1e293b;
+  outline: none;
+}
+
+.hb-filesystem__workspaceInput {
+  background: #ffffff;
+  border: 1px solid var(--hb-filesystem-border);
+  border-radius: 8px;
+  color: var(--hb-filesystem-text);
+  font: inherit;
+  min-width: 0;
+  padding: 0.55rem 0.65rem;
+}
+
+.hb-filesystem__workspaceInput:focus {
+  border-color: rgba(37, 99, 235, 0.45);
+  box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.14);
+  outline: none;
+}
+
+.hb-filesystem__workspaceError,
+.hb-filesystem__workspacePlaceholder {
+  color: var(--hb-filesystem-text-muted);
+  font-size: 0.78rem;
   margin: 0;
+}
+
+.hb-filesystem__workspaceError {
+  color: var(--hb-filesystem-danger);
+}
+
+.hb-filesystem__workspaceOptions {
+  display: grid;
+  gap: 0.15rem;
+  max-height: 15rem;
+  overflow: auto;
+}
+
+.hb-filesystem__workspaceOption {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  color: var(--hb-filesystem-text);
+  cursor: pointer;
+  display: inline-flex;
+  gap: 0.45rem;
+  justify-content: flex-start;
+  padding: 0.42rem 0.45rem;
+  text-align: left;
+  width: 100%;
+}
+
+.hb-filesystem__workspaceOption:hover,
+.hb-filesystem__workspaceOption:focus-visible {
+  background: var(--hb-filesystem-row-hover);
+  outline: none;
+}
+
+.hb-filesystem__workspaceOptionText {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .hb-filesystem__tree {
@@ -462,6 +633,10 @@
   .hb-filesystem__bodyHeader--workspace {
     grid-row: 3;
     padding: 0.35rem 0.7rem;
+  }
+
+  .hb-filesystem__workspaceMenu {
+    width: min(24rem, calc(100vw - 1.4rem));
   }
 
   .hb-filesystem__workspace {
