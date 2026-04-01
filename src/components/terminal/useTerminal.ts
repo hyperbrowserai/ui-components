@@ -258,6 +258,26 @@ export function useTerminal({
     setErrorMessage(null);
     updateStatus("connecting");
 
+    const disposeConnection = () => {
+      if (isCancelled) {
+        return;
+      }
+
+      isCancelled = true;
+      disposeSession();
+      controller.abort();
+    };
+
+    const handlePageHide = (event: PageTransitionEvent) => {
+      if (event.persisted) {
+        return;
+      }
+
+      disposeConnection();
+    };
+
+    window.addEventListener("pagehide", handlePageHide);
+
     const connectSession = async () => {
       const initialSize = resolveTerminalSize();
       const session = await connection.connect({
@@ -308,9 +328,8 @@ export function useTerminal({
     });
 
     return () => {
-      isCancelled = true;
-      controller.abort();
-      disposeSession();
+      window.removeEventListener("pagehide", handlePageHide);
+      disposeConnection();
     };
   }, [connection, terminalReady]);
 

@@ -12,6 +12,7 @@ const DEFAULT_CREATE_RETRY_DELAY_MS = 700;
 const DEFAULT_RECONNECT_RETRY_DELAY_MS = 1000;
 const DEFAULT_INPUT_BATCH_DELAY_MS = 16;
 const DEFAULT_INPUT_BATCH_MAX_BYTES = 8192;
+const DEFAULT_TERMINATE_CLEANUP_TIMEOUT_MS = 3000;
 const DEFAULT_HYPERBROWSER_API_BASE_URL = "https://api.hyperbrowser.ai/api";
 
 export type HyperbrowserRuntimeBrowserAuth = {
@@ -103,6 +104,12 @@ type HyperbrowserResolvedRuntimeAccess = {
 type HyperbrowserPtyCloseBehavior = NonNullable<
   HyperbrowserPtyConnectionOptions["closeBehavior"]
 >;
+
+type RuntimeRequestOptions = {
+  allowRetry?: boolean;
+  keepalive?: boolean;
+  signal?: AbortSignal;
+};
 
 class HyperbrowserRequestError extends Error {
   status?: number;
@@ -306,7 +313,8 @@ async function readJsonResponse<T>(
 
 async function fetchRuntimeBrowserAuth(
   options: HyperbrowserPtyConnectionOptions,
-  signal: AbortSignal
+  signal: AbortSignal,
+  keepalive = false
 ): Promise<HyperbrowserBrowserAuthResponse> {
   const browserAuthEndpoint = resolveBrowserAuthEndpoint(options);
 
@@ -335,6 +343,7 @@ async function fetchRuntimeBrowserAuth(
   const response = await fetchImpl(browserAuthEndpoint, {
     credentials: options.apiCredentials ?? "include",
     headers,
+    keepalive,
     method: "POST",
     signal,
   });
@@ -350,6 +359,8 @@ class HyperbrowserPtySession implements TerminalSession {
   private readonly closeBehavior: HyperbrowserPtyCloseBehavior;
   private readonly createRetryCount: number;
   private readonly createRetryDelayMs: number;
+  private closePromise: Promise<void> | null = null;
+  private createdPtyDuringStart = false;
   private readonly fetchImpl: typeof fetch;
   private readonly inputBatchDelayMs: number;
   private readonly inputBatchMaxBytes: number;
@@ -395,14 +406,28 @@ class HyperbrowserPtySession implements TerminalSession {
   }
 
   async start(): Promise<this> {
-    if (!this.ptyId) {
-      await this.createPtyWithRetry();
-    } else {
-      await this.bootstrapRuntimeAuth();
-    }
+    try {
+      if (!this.ptyId) {
+        await this.createPtyWithRetry();
+      } else {
+        await this.bootstrapRuntimeAuth();
+      }
 
-    await this.openSocket(this.lastSeq);
-    return this;
+      await this.openSocket(this.lastSeq);
+      return this;
+    } catch (error) {
+      this.beginShutdown();
+
+      if (this.shouldTerminateCreatedPtyOnStartFailure()) {
+        try {
+          await this.runTerminateCleanup();
+        } catch {
+          // Ignore cleanup failures when start aborts after PTY creation.
+        }
+      }
+
+      throw error;
+    }
   }
 
   writeInput(data: string | Uint8Array): void {
@@ -449,29 +474,11 @@ class HyperbrowserPtySession implements TerminalSession {
   }
 
   async close(): Promise<void> {
-    this.explicitClose = true;
-    this.clearTimers();
-
-    const socket = this.socket;
-    this.socket = null;
-    if (socket) {
-      socket.close();
+    if (!this.closePromise) {
+      this.closePromise = this.closeInternal();
     }
 
-    if (
-      this.closeBehavior === "terminate" &&
-      this.ptyId &&
-      !this.hasEmittedExit
-    ) {
-      try {
-        await this.bootstrapRuntimeAuth();
-        await this.killPty();
-      } catch {
-        // Ignore cleanup failures when closing a session.
-      }
-    }
-
-    this.terminated = true;
+    await this.closePromise;
   }
 
   onOutput(listener: (data: Uint8Array) => void): TerminalUnsubscribe {
@@ -517,6 +524,18 @@ class HyperbrowserPtySession implements TerminalSession {
     });
   }
 
+  private beginShutdown(): void {
+    this.explicitClose = true;
+    this.terminated = true;
+    this.clearTimers();
+
+    const socket = this.socket;
+    this.socket = null;
+    if (socket) {
+      socket.close();
+    }
+  }
+
   private async createPtyWithRetry(): Promise<void> {
     let attempt = 0;
 
@@ -543,6 +562,7 @@ class HyperbrowserPtySession implements TerminalSession {
           }
         );
         this.ptyId = response.pty.id;
+        this.createdPtyDuringStart = true;
         return;
       } catch (error) {
         attempt += 1;
@@ -558,7 +578,7 @@ class HyperbrowserPtySession implements TerminalSession {
     }
   }
 
-  private async killPty(): Promise<void> {
+  private async killPty(requestOptions: RuntimeRequestOptions = {}): Promise<void> {
     if (!this.ptyId) {
       return;
     }
@@ -576,7 +596,8 @@ class HyperbrowserPtySession implements TerminalSession {
           "Content-Type": "application/json",
         },
         method: "POST",
-      }
+      },
+      requestOptions
     );
   }
 
@@ -647,6 +668,20 @@ class HyperbrowserPtySession implements TerminalSession {
     }
 
     this.scheduleReconnect();
+  }
+
+  private async closeInternal(): Promise<void> {
+    this.beginShutdown();
+
+    if (!this.shouldTerminateOnClose()) {
+      return;
+    }
+
+    try {
+      await this.runTerminateCleanup();
+    } catch {
+      // Ignore cleanup failures when closing a session.
+    }
   }
 
   private async fetchPtyStatus(): Promise<HyperbrowserPtyStatus> {
@@ -764,8 +799,11 @@ class HyperbrowserPtySession implements TerminalSession {
     });
   }
 
-  private async bootstrapRuntimeAuth(): Promise<void> {
-    const runtimeAuth = await fetchRuntimeBrowserAuth(this.options, this.abortSignal);
+  private async bootstrapRuntimeAuth(
+    signal: AbortSignal = this.abortSignal,
+    keepalive = false
+  ): Promise<void> {
+    const runtimeAuth = await fetchRuntimeBrowserAuth(this.options, signal, keepalive);
     const runtimeBaseUrl = deriveRuntimeBaseUrl(runtimeAuth.bootstrapUrl);
 
     this.runtimeAccess = {
@@ -775,8 +813,9 @@ class HyperbrowserPtySession implements TerminalSession {
 
     const response = await this.fetchImpl(runtimeAuth.bootstrapUrl, {
       credentials: "include",
+      keepalive,
       method: "GET",
-      signal: this.abortSignal,
+      signal,
     });
     await readJsonResponse<Record<string, never>>(response, "Runtime auth bootstrap failed.");
   }
@@ -784,20 +823,75 @@ class HyperbrowserPtySession implements TerminalSession {
   private async runtimeFetch<T = Record<string, never>>(
     url: URL,
     init: RequestInit,
-    allowRetry = true
+    requestOptions: RuntimeRequestOptions = {}
   ): Promise<T> {
+    const {
+      allowRetry = true,
+      keepalive = false,
+      signal = this.abortSignal,
+    } = requestOptions;
     const response = await this.fetchImpl(url.toString(), {
-      credentials: "include",
-      signal: this.abortSignal,
       ...init,
+      credentials: "include",
+      keepalive,
+      signal,
     });
 
     if (!response.ok && response.status === 401 && allowRetry) {
-      await this.bootstrapRuntimeAuth();
-      return this.runtimeFetch<T>(url, init, false);
+      await this.bootstrapRuntimeAuth(signal, keepalive);
+      return this.runtimeFetch<T>(url, init, {
+        allowRetry: false,
+        keepalive,
+        signal,
+      });
     }
 
     return readJsonResponse<T>(response, "Runtime request failed.");
+  }
+
+  private async runTerminateCleanup(): Promise<void> {
+    await this.withTerminateCleanupSignal(async (signal) => {
+      if (!this.ptyId) {
+        return;
+      }
+
+      if (!this.runtimeAccess) {
+        await this.bootstrapRuntimeAuth(signal, true);
+      }
+
+      await this.killPty({
+        keepalive: true,
+        signal,
+      });
+    });
+  }
+
+  private shouldTerminateCreatedPtyOnStartFailure(): boolean {
+    return (
+      this.closeBehavior === "terminate" &&
+      this.createdPtyDuringStart &&
+      !!this.ptyId &&
+      !this.hasEmittedExit
+    );
+  }
+
+  private shouldTerminateOnClose(): boolean {
+    return this.closeBehavior === "terminate" && !!this.ptyId && !this.hasEmittedExit;
+  }
+
+  private async withTerminateCleanupSignal(
+    callback: (signal: AbortSignal) => Promise<void>
+  ): Promise<void> {
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => {
+      controller.abort();
+    }, DEFAULT_TERMINATE_CLEANUP_TIMEOUT_MS);
+
+    try {
+      await callback(controller.signal);
+    } finally {
+      window.clearTimeout(timeoutId);
+    }
   }
 
   private scheduleReconnect(): void {
