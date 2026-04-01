@@ -52,7 +52,6 @@ function ControlLabel({ children }) {
 
 function HyperbrowserFileWorkspaceDemo({
   HyperbrowserFileWorkspace,
-  configureMonacoLoader,
   fileWorkspaceThemePresets,
 }) {
   const [mode, setMode] = React.useState("api");
@@ -69,8 +68,7 @@ function HyperbrowserFileWorkspaceDemo({
 
   React.useEffect(() => {
     setApiBaseUrl(DEFAULT_API_BASE_URL);
-    configureMonacoLoader?.({ vsPath: "/dist/monaco/vs" });
-  }, [configureMonacoLoader]);
+  }, []);
 
   const activeConfig = React.useMemo(() => {
     if (!appliedConfig) {
@@ -367,20 +365,11 @@ function HyperbrowserFileWorkspaceDemo({
             <HyperbrowserFileWorkspace
               {...activeConfig}
               key={`${launchCount}:${appliedConfig.theme}:${appliedConfig.initialPath}`}
-              onCreateDirectory={(path) =>
-                setLatestEvent(`Created directory: ${path}`)
-              }
-              onCreateFile={(path) => setLatestEvent(`Created file: ${path}`)}
-              onDelete={(path) => setLatestEvent(`Deleted: ${path}`)}
               onError={(message) => setLatestEvent(`Error: ${message}`)}
               onOpenFile={(path) => setLatestEvent(`Opened: ${path}`)}
-              onRename={(path, nextPath) =>
-                setLatestEvent(`Renamed ${path} -> ${nextPath}`)
-              }
-              onSaveFile={(path) => setLatestEvent(`Saved: ${path}`)}
               style={{ minHeight: "780px" }}
               theme={appliedConfig.theme}
-              title="Hyperbrowser File Workspace"
+              title="Hyperbrowser File Browser"
             />
           }
         </div>
@@ -401,14 +390,9 @@ export const hyperbrowserFileWorkspaceScenario = {
   title: "Hyperbrowser File Workspace",
   render({ components }) {
     const HyperbrowserFileWorkspace = components.HyperbrowserFileWorkspace;
-    const configureMonacoLoader = components.configureMonacoLoader;
     const fileWorkspaceThemePresets = components.fileWorkspaceThemePresets;
 
-    if (
-      typeof HyperbrowserFileWorkspace !== "function" ||
-      typeof configureMonacoLoader !== "function" ||
-      !fileWorkspaceThemePresets
-    ) {
+    if (typeof HyperbrowserFileWorkspace !== "function" || !fileWorkspaceThemePresets) {
       return (
         <Card>
           <p style={{ margin: 0 }}>
@@ -422,7 +406,6 @@ export const hyperbrowserFileWorkspaceScenario = {
     return (
       <HyperbrowserFileWorkspaceDemo
         HyperbrowserFileWorkspace={HyperbrowserFileWorkspace}
-        configureMonacoLoader={configureMonacoLoader}
         fileWorkspaceThemePresets={fileWorkspaceThemePresets}
       />
     );

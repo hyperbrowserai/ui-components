@@ -1,3 +1,5 @@
+import React from "react";
+
 import type { CSSProperties } from "react";
 import { useEffect, useRef, useState } from "react";
 import { CodeEditorPane } from "./CodeEditorPane";
@@ -7,27 +9,10 @@ import {
   getAncestorPaths,
   getBaseName,
   getDirName,
-  isPathWithin,
-  isRootPath,
-  joinFilePath,
   normalizeFilePath,
 } from "./filePath";
 import { resolveFileWorkspaceTheme } from "./fileWorkspaceThemes";
 import type { FileDocument, FileEntry, FileWorkspaceProps } from "./types";
-
-type WorkspaceDocument = FileDocument & {
-  savedContents: string;
-};
-
-type PendingAction =
-  | {
-      directoryPath: string;
-      type: "create-directory" | "create-file";
-    }
-  | {
-      path: string;
-      type: "rename";
-    };
 
 function toThemeStyle(
   theme: ReturnType<typeof resolveFileWorkspaceTheme>
@@ -52,17 +37,24 @@ function toThemeStyle(
   } as CSSProperties;
 }
 
-function toStatusLabel(document: WorkspaceDocument | null): string {
+function toStatusLabel(document: FileDocument | null): string {
   if (!document) {
-    return "No file open";
+    return "Explorer ready";
   }
-  if (document.readOnly) {
-    return "Read only";
+
+  if (!document.readOnlyReason && document.contents.length === 0) {
+    return "Empty file";
   }
-  if (document.contents !== document.savedContents) {
-    return "Unsaved changes";
+
+  if (!document.contents.trim()) {
+    return "Preview unavailable";
   }
-  return "Synced";
+
+  if (document.truncated) {
+    return "Truncated preview";
+  }
+
+  return "Read-only preview";
 }
 
 function toErrorMessage(error: unknown): string {
@@ -70,6 +62,16 @@ function toErrorMessage(error: unknown): string {
     return error.message;
   }
   return "An unexpected filesystem error occurred.";
+}
+
+function resolveExplorerRootPath(path: string): string {
+  const normalizedPath = normalizeFilePath(path);
+  if (normalizedPath === "/") {
+    return "/";
+  }
+
+  const [segment] = normalizedPath.split("/").filter(Boolean);
+  return segment ? `/${segment}` : "/";
 }
 
 function sortEntries(entries: FileEntry[]): FileEntry[] {
@@ -81,21 +83,57 @@ function sortEntries(entries: FileEntry[]): FileEntry[] {
   });
 }
 
+function RefreshIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 16 16" fill="none">
+      <path
+        d="M13 8a5 5 0 1 1-1.38-3.45"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.3"
+      />
+      <path
+        d="M10.75 2.75H13v2.25"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.3"
+      />
+    </svg>
+  );
+}
+
+function CopyIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 16 16" fill="none">
+      <path
+        d="M6 3.5h6.25A1.25 1.25 0 0 1 13.5 4.75V11"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.3"
+      />
+      <path
+        d="M3.75 6h6.5c.69 0 1.25.56 1.25 1.25v5c0 .69-.56 1.25-1.25 1.25h-6.5C3.06 13.5 2.5 12.94 2.5 12.25v-5C2.5 6.56 3.06 6 3.75 6Z"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.3"
+      />
+    </svg>
+  );
+}
+
 export function FileWorkspace({
   adapter,
   className,
   initialPath = "/",
-  onCreateDirectory,
-  onCreateFile,
-  onDelete,
   onError,
   onOpenFile,
-  onRename,
-  onSaveFile,
-  readOnly = false,
   style,
   theme,
-  title = "Filesystem Workspace",
+  title = "Filesystem Browser",
 }: FileWorkspaceProps) {
   const resolvedTheme = resolveFileWorkspaceTheme(theme);
   const adapterRef = useRef(adapter);
@@ -111,12 +149,12 @@ export function FileWorkspace({
   });
   const [expandedPaths, setExpandedPaths] = useState<string[]>(["/"]);
   const [loadingDirectories, setLoadingDirectories] = useState<string[]>(["/"]);
-  const [openDocuments, setOpenDocuments] = useState<WorkspaceDocument[]>([]);
-  const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
-  const [pendingActionValue, setPendingActionValue] = useState("");
+  const [activeDocument, setActiveDocument] = useState<FileDocument | null>(null);
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
-  const [statusMessage, setStatusMessage] = useState("Loading sandbox filesystem…");
+  const [statusMessage, setStatusMessage] = useState("Loading filesystem preview…");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [copyState, setCopyState] = useState<"idle" | "copied">("idle");
+  const explorerRootPath = resolveExplorerRootPath(initialPath);
 
   adapterRef.current = adapter;
 
@@ -134,11 +172,13 @@ export function FileWorkspace({
   }
 
   function mergeEntries(entries: FileEntry[]) {
-    const nextEntries = { ...entryIndex };
-    for (const entry of entries) {
-      nextEntries[entry.path] = entry;
-    }
-    setEntryIndex(nextEntries);
+    setEntryIndex((current) => {
+      const nextEntries = { ...current };
+      for (const entry of entries) {
+        nextEntries[entry.path] = entry;
+      }
+      return nextEntries;
+    });
   }
 
   async function loadDirectory(path: string): Promise<FileEntry[]> {
@@ -159,11 +199,13 @@ export function FileWorkspace({
           language: entry.language ?? inferLanguageFromPath(entry.path),
         }))
       );
+
       setDirectoryChildren((current) => ({
         ...current,
         [normalizedPath]: sortedEntries,
       }));
       mergeEntries(sortedEntries);
+
       if (normalizedPath !== "/") {
         setEntryIndex((current) => ({
           ...current,
@@ -176,6 +218,7 @@ export function FileWorkspace({
             } satisfies FileEntry),
         }));
       }
+
       return sortedEntries;
     } catch (error) {
       pushError(toErrorMessage(error));
@@ -203,22 +246,20 @@ export function FileWorkspace({
       setExpandedPaths((current) =>
         current.includes(ancestor) ? current : [...current, ancestor]
       );
-      if (entryIndex[ancestor]?.type === "directory" || ancestor === "/") {
-        await ensureDirectoryLoaded(ancestor);
-      }
+      await ensureDirectoryLoaded(ancestor);
     }
   }
 
-  async function openFile(path: string): Promise<void> {
+  async function loadDocument(path: string, options?: { force?: boolean }) {
     const normalizedPath = normalizeFilePath(path);
+
     setSelectedPath(normalizedPath);
     setActiveDocumentPath(normalizedPath);
     onOpenFile?.(normalizedPath);
 
-    const existingDocument = openDocuments.find(
-      (document) => document.path === normalizedPath
-    );
-    if (existingDocument) {
+    if (activeDocumentPath === normalizedPath && activeDocument && !options?.force) {
+      setStatusMessage(`Previewing ${normalizedPath}`);
+      setErrorMessage(null);
       return;
     }
 
@@ -228,17 +269,15 @@ export function FileWorkspace({
         return;
       }
 
-      const nextDocument: WorkspaceDocument = {
+      setActiveDocument({
         ...document,
         language:
           document.language ??
           entryIndex[normalizedPath]?.language ??
           inferLanguageFromPath(normalizedPath),
         path: normalizedPath,
-        savedContents: document.contents,
-      };
-      setOpenDocuments((current) => [...current, nextDocument]);
-      setStatusMessage(`Opened ${normalizedPath}`);
+      });
+      setStatusMessage(`Previewing ${normalizedPath}`);
       setErrorMessage(null);
     } catch (error) {
       pushError(toErrorMessage(error));
@@ -280,16 +319,20 @@ export function FileWorkspace({
           if (!active || !mountedRef.current) {
             return;
           }
+          setActiveDocument(null);
+          setActiveDocumentPath(null);
           setSelectedPath(entry.path);
-        } else {
-          const parentPath = getDirName(entry.path);
-          await expandDirectoryChain(parentPath);
-          if (!active || !mountedRef.current) {
-            return;
-          }
-          await openFile(entry.path);
+          setStatusMessage(`Browsing ${entry.path}`);
+          return;
         }
-        setStatusMessage("Ready");
+
+        const parentPath = getDirName(entry.path);
+        await expandDirectoryChain(parentPath);
+        if (!active || !mountedRef.current) {
+          return;
+        }
+
+        await loadDocument(entry.path, { force: true });
       } catch (error) {
         pushError(toErrorMessage(error));
       }
@@ -302,30 +345,11 @@ export function FileWorkspace({
     };
   }, [initialPath]);
 
-  useEffect(() => {
-    function handleWindowSave(event: KeyboardEvent) {
-      if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== "s") {
-        return;
-      }
-
-      event.preventDefault();
-      void saveActiveDocument();
-    }
-
-    window.addEventListener("keydown", handleWindowSave);
-    return () => {
-      window.removeEventListener("keydown", handleWindowSave);
-    };
-  });
-
-  const activeDocument =
-    openDocuments.find((document) => document.path === activeDocumentPath) ?? null;
   const selectedEntry = selectedPath ? entryIndex[selectedPath] ?? null : null;
-  const isWorkspaceReadOnly = readOnly === true;
 
   async function handleToggleDirectory(path: string) {
     const normalizedPath = normalizeFilePath(path);
-    if (isRootPath(normalizedPath)) {
+    if (normalizedPath === "/") {
       await ensureDirectoryLoaded("/");
       return;
     }
@@ -334,6 +358,7 @@ export function FileWorkspace({
     if (!isExpanded) {
       setExpandedPaths((current) => [...current, normalizedPath]);
       await ensureDirectoryLoaded(normalizedPath);
+      setStatusMessage(`Browsing ${normalizedPath}`);
       return;
     }
 
@@ -342,238 +367,36 @@ export function FileWorkspace({
     );
   }
 
-  function updateDocument(path: string, patch: Partial<WorkspaceDocument>) {
-    const normalizedPath = normalizeFilePath(path);
-    setOpenDocuments((current) =>
-      current.map((document) =>
-        document.path === normalizedPath ? { ...document, ...patch } : document
-      )
-    );
-  }
-
-  async function saveActiveDocument() {
-    if (!activeDocument) {
-      return;
-    }
-    if (isWorkspaceReadOnly || activeDocument.readOnly) {
-      setStatusMessage("This file is read-only and cannot be saved.");
-      return;
-    }
-    if (activeDocument.contents === activeDocument.savedContents) {
-      setStatusMessage("No changes to save.");
-      return;
-    }
-
-    try {
-      await adapterRef.current.writeFile(activeDocument.path, activeDocument.contents);
-      if (!mountedRef.current) {
-        return;
-      }
-
-      updateDocument(activeDocument.path, {
-        savedContents: activeDocument.contents,
-      });
-      setStatusMessage(`Saved ${activeDocument.path}`);
-      setErrorMessage(null);
-      onSaveFile?.(activeDocument.path);
-      await ensureDirectoryLoaded(getDirName(activeDocument.path));
-    } catch (error) {
-      pushError(toErrorMessage(error));
-    }
-  }
-
-  function startCreateAction(type: "create-directory" | "create-file") {
-    const baseDirectory =
-      selectedEntry?.type === "directory"
-        ? selectedEntry.path
-        : selectedPath
-          ? getDirName(selectedPath)
-          : "/";
-    setPendingAction({
-      directoryPath: baseDirectory,
-      type,
-    });
-    setPendingActionValue("");
-  }
-
-  function startRenameAction() {
-    if (!selectedPath || isRootPath(selectedPath)) {
-      return;
-    }
-    setPendingAction({
-      path: selectedPath,
-      type: "rename",
-    });
-    setPendingActionValue(getBaseName(selectedPath));
-  }
-
-  function cancelPendingAction() {
-    setPendingAction(null);
-    setPendingActionValue("");
-  }
-
-  async function submitPendingAction() {
-    if (!pendingAction) {
-      return;
-    }
-
-    const currentPendingAction = pendingAction;
-    const nextName = pendingActionValue.trim();
-    if (!nextName) {
-      setStatusMessage("Name is required.");
-      return;
-    }
-
-    try {
-      if (currentPendingAction.type === "create-file") {
-        const nextPath = joinFilePath(currentPendingAction.directoryPath, nextName);
-        await adapterRef.current.createFile(nextPath, "");
-        if (!mountedRef.current) {
-          return;
-        }
-
-        await ensureDirectoryLoaded(currentPendingAction.directoryPath);
-        await loadDirectory(currentPendingAction.directoryPath);
-        setSelectedPath(nextPath);
-        setActiveDocumentPath(nextPath);
-        setOpenDocuments((current) => {
-          if (current.some((document) => document.path === nextPath)) {
-            return current;
-          }
-          return [
-            ...current,
-            {
-              contents: "",
-              language: inferLanguageFromPath(nextPath),
-              path: nextPath,
-              savedContents: "",
-            },
-          ];
-        });
-        setStatusMessage(`Created ${nextPath}`);
-        onCreateFile?.(nextPath);
-      } else if (currentPendingAction.type === "create-directory") {
-        const nextPath = joinFilePath(currentPendingAction.directoryPath, nextName);
-        await adapterRef.current.createDirectory(nextPath);
-        if (!mountedRef.current) {
-          return;
-        }
-
-        await ensureDirectoryLoaded(currentPendingAction.directoryPath);
-        await loadDirectory(currentPendingAction.directoryPath);
-        setExpandedPaths((current) =>
-          current.includes(nextPath) ? current : [...current, nextPath]
-        );
-        setSelectedPath(nextPath);
-        setStatusMessage(`Created ${nextPath}`);
-        onCreateDirectory?.(nextPath);
-      } else if (currentPendingAction.type === "rename") {
-        const currentPath = currentPendingAction.path;
-        const nextPath = joinFilePath(getDirName(currentPath), nextName);
-        await adapterRef.current.rename(currentPath, nextPath);
-        if (!mountedRef.current) {
-          return;
-        }
-
-        await loadDirectory(getDirName(currentPath));
-        if (getDirName(nextPath) !== getDirName(currentPath)) {
-          await loadDirectory(getDirName(nextPath));
-        }
-
-        setEntryIndex((current) => {
-          const nextIndex = { ...current };
-          const movingEntry = nextIndex[currentPath];
-          delete nextIndex[currentPath];
-          if (movingEntry) {
-            nextIndex[nextPath] = {
-              ...movingEntry,
-              name: getBaseName(nextPath),
-              path: nextPath,
-            };
-          }
-          return nextIndex;
-        });
-        setOpenDocuments((current) =>
-          current.map((document) =>
-            document.path === currentPath
-              ? {
-                  ...document,
-                  language: inferLanguageFromPath(nextPath),
-                  path: nextPath,
-                }
-              : document
-          )
-        );
-        setExpandedPaths((current) =>
-          current.map((path) => (path === currentPath ? nextPath : path))
-        );
-        if (selectedPath === currentPath) {
-          setSelectedPath(nextPath);
-        }
-        if (activeDocumentPath === currentPath) {
-          setActiveDocumentPath(nextPath);
-        }
-        setStatusMessage(`Renamed to ${nextPath}`);
-        onRename?.(currentPath, nextPath);
-      }
-
-      setErrorMessage(null);
-      cancelPendingAction();
-    } catch (error) {
-      pushError(toErrorMessage(error));
-    }
-  }
-
-  async function deleteSelectedPath() {
-    if (!selectedPath || isRootPath(selectedPath)) {
-      return;
-    }
-
-    const isDirectory = entryIndex[selectedPath]?.type === "directory";
-    const confirmationMessage = isDirectory
-      ? `Delete ${selectedPath} and all nested files?`
-      : `Delete ${selectedPath}?`;
-    if (!window.confirm(confirmationMessage)) {
-      return;
-    }
-
-    try {
-      await adapterRef.current.delete(selectedPath, {
-        recursive: isDirectory,
-      });
-      if (!mountedRef.current) {
-        return;
-      }
-
-      const parentPath = getDirName(selectedPath);
-      await loadDirectory(parentPath);
-      setSelectedPath(parentPath);
-      setExpandedPaths((current) =>
-        current.filter((path) => !isPathWithin(selectedPath, path))
-      );
-      setOpenDocuments((current) =>
-        current.filter((document) => !isPathWithin(selectedPath, document.path))
-      );
-      setActiveDocumentPath((current) =>
-        current && isPathWithin(selectedPath, current) ? null : current
-      );
-      setStatusMessage(`Deleted ${selectedPath}`);
-      setErrorMessage(null);
-      onDelete?.(selectedPath);
-    } catch (error) {
-      pushError(toErrorMessage(error));
-    }
-  }
-
-  async function refreshExplorer() {
+  async function refreshWorkspace() {
     const targetPath =
       selectedEntry?.type === "directory"
         ? selectedEntry.path
         : selectedPath
           ? getDirName(selectedPath)
           : "/";
+
     await loadDirectory(targetPath);
-    setStatusMessage(`Refreshed ${targetPath}`);
+    if (activeDocumentPath) {
+      await loadDocument(activeDocumentPath, { force: true });
+    } else {
+      setStatusMessage(`Refreshed ${targetPath}`);
+    }
+  }
+
+  async function copyActivePath(path: string) {
+    if (!navigator?.clipboard?.writeText) {
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(path);
+      setCopyState("copied");
+      window.setTimeout(() => {
+        setCopyState("idle");
+      }, 1200);
+    } catch {
+      setCopyState("idle");
+    }
   }
 
   const rootClassName = ["hb-filesystem", className].filter(Boolean).join(" ");
@@ -587,7 +410,6 @@ export function FileWorkspace({
         ...style,
       }}
     >
-      <div aria-hidden="true" className="hb-filesystem__glow" />
       <header className="hb-filesystem__header">
         <div className="hb-filesystem__titleBlock">
           <p className="hb-filesystem__eyebrow">{resolvedTheme.label}</p>
@@ -596,211 +418,67 @@ export function FileWorkspace({
         <div className="hb-filesystem__headerActions">
           <button
             className="hb-filesystem__actionButton"
-            disabled={
-              isWorkspaceReadOnly ||
-              !activeDocument ||
-              activeDocument.readOnly === true ||
-              activeDocument.contents === activeDocument.savedContents
-            }
             onClick={() => {
-              void saveActiveDocument();
+              void refreshWorkspace();
             }}
             type="button"
           >
-            Save
-          </button>
-          <button
-            className="hb-filesystem__actionButton"
-            onClick={() => {
-              void refreshExplorer();
-            }}
-            type="button"
-          >
+            <RefreshIcon />
             Refresh
           </button>
         </div>
       </header>
 
       <div className="hb-filesystem__body">
-        <aside className="hb-filesystem__sidebar">
-          <div className="hb-filesystem__sidebarHeader">
-            <div>
-              <p className="hb-filesystem__sidebarEyebrow">Explorer</p>
-              <p className="hb-filesystem__sidebarPath">
-                {selectedPath ?? normalizeFilePath(initialPath)}
-              </p>
-            </div>
-            <div className="hb-filesystem__sidebarActions">
+        <div className="hb-filesystem__bodyHeader hb-filesystem__bodyHeader--sidebar">
+          <p className="hb-filesystem__sidebarTitle">Files</p>
+        </div>
+
+        <div className="hb-filesystem__bodyHeader hb-filesystem__bodyHeader--workspace">
+          {activeDocument ? (
+            <>
+              <code className="hb-filesystem__previewPathBar">{activeDocument.path}</code>
               <button
-                className="hb-filesystem__miniButton"
-                disabled={isWorkspaceReadOnly}
-                onClick={() => startCreateAction("create-file")}
-                type="button"
-              >
-                New file
-              </button>
-              <button
-                className="hb-filesystem__miniButton"
-                disabled={isWorkspaceReadOnly}
-                onClick={() => startCreateAction("create-directory")}
-                type="button"
-              >
-                New folder
-              </button>
-              <button
-                className="hb-filesystem__miniButton"
-                disabled={
-                  isWorkspaceReadOnly || !selectedPath || isRootPath(selectedPath)
-                }
-                onClick={startRenameAction}
-                type="button"
-              >
-                Rename
-              </button>
-              <button
-                className="hb-filesystem__miniButton"
-                data-tone="danger"
-                disabled={
-                  isWorkspaceReadOnly || !selectedPath || isRootPath(selectedPath)
-                }
+                aria-label="Copy file path"
+                className="hb-filesystem__copyButton"
                 onClick={() => {
-                  void deleteSelectedPath();
+                  void copyActivePath(activeDocument.path);
                 }}
+                title={copyState === "copied" ? "Copied" : "Copy path"}
                 type="button"
               >
-                Delete
+                <CopyIcon />
               </button>
-            </div>
-          </div>
+            </>
+          ) : (
+            <div
+              aria-hidden="true"
+              className="hb-filesystem__previewPathBar"
+              data-empty="true"
+            />
+          )}
+        </div>
 
-          {pendingAction ? (
-            <form
-              className="hb-filesystem__inlineForm"
-              onSubmit={(event) => {
-                event.preventDefault();
-                void submitPendingAction();
-              }}
-            >
-              <label className="hb-filesystem__inlineFormLabel">
-                {pendingAction.type === "rename"
-                  ? `Rename ${pendingAction.path}`
-                  : `Create in ${pendingAction.directoryPath}`}
-                <input
-                  autoFocus
-                  className="hb-filesystem__input"
-                  onChange={(event) => setPendingActionValue(event.target.value)}
-                  placeholder={
-                    pendingAction.type === "create-directory"
-                      ? "folder-name"
-                      : pendingAction.type === "create-file"
-                        ? "file-name.ts"
-                        : "new-name"
-                  }
-                  value={pendingActionValue}
-                />
-              </label>
-              <div className="hb-filesystem__inlineFormActions">
-                <button className="hb-filesystem__actionButton" type="submit">
-                  Apply
-                </button>
-                <button
-                  className="hb-filesystem__actionButton"
-                  onClick={cancelPendingAction}
-                  type="button"
-                >
-                  Cancel
-                </button>
-              </div>
-            </form>
-          ) : null}
-
+        <aside className="hb-filesystem__sidebar">
           <FileTree
             activeFilePath={activeDocumentPath}
             directoryChildren={directoryChildren}
             expandedPaths={expandedPaths}
             loadingPaths={loadingDirectories}
             onOpenFile={(path) => {
-              void openFile(path);
+              void loadDocument(path);
             }}
             onSelectPath={setSelectedPath}
             onToggleDirectory={(path) => {
               void handleToggleDirectory(path);
             }}
+            rootPath={explorerRootPath}
             selectedPath={selectedPath}
           />
         </aside>
 
         <div className="hb-filesystem__workspace">
-          <div className="hb-filesystem__tabs">
-            {openDocuments.length === 0 ? (
-              <div className="hb-filesystem__tab" data-active="true">
-                No file open
-              </div>
-            ) : (
-              openDocuments.map((document) => {
-                const isActive = document.path === activeDocumentPath;
-                const isDirty = document.contents !== document.savedContents;
-                return (
-                  <div
-                    className="hb-filesystem__tab"
-                    data-active={isActive ? "true" : undefined}
-                    key={document.path}
-                  >
-                    <button
-                      className="hb-filesystem__tabButton"
-                      onClick={() => {
-                        setActiveDocumentPath(document.path);
-                        setSelectedPath(document.path);
-                      }}
-                      type="button"
-                    >
-                      <span>{getBaseName(document.path)}</span>
-                      {isDirty ? (
-                        <span className="hb-filesystem__dirtyDot">DIRTY</span>
-                      ) : null}
-                    </button>
-                    <button
-                      aria-label={`Close ${document.path}`}
-                      className="hb-filesystem__tabClose"
-                      onClick={() => {
-                        const nextDocuments = openDocuments.filter(
-                          (item) => item.path !== document.path
-                        );
-                        setOpenDocuments(nextDocuments);
-                        setActiveDocumentPath((current) => {
-                          if (current !== document.path) {
-                            return current;
-                          }
-                          const remainingDocument =
-                            nextDocuments[nextDocuments.length - 1] ?? null;
-                          return remainingDocument?.path ?? null;
-                        });
-                      }}
-                      type="button"
-                    >
-                      x
-                    </button>
-                  </div>
-                );
-              })
-            )}
-          </div>
-
-          <CodeEditorPane
-            document={activeDocument}
-            onChange={(nextContents) => {
-              if (!activeDocumentPath) {
-                return;
-              }
-              updateDocument(activeDocumentPath, {
-                contents: nextContents,
-              });
-            }}
-            onSave={() => {
-              void saveActiveDocument();
-            }}
-            theme={resolvedTheme}
-          />
+          <CodeEditorPane document={activeDocument} theme={resolvedTheme} />
         </div>
       </div>
 

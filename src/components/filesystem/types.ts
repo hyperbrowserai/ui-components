@@ -36,11 +36,11 @@ export type FileWorkspaceAdapter = {
   listDirectory(path: string): Promise<FileDirectoryListing>;
   stat(path: string): Promise<FileEntry>;
   readFile(path: string): Promise<FileDocument>;
-  writeFile(path: string, contents: string): Promise<void>;
-  createFile(path: string, contents?: string): Promise<void>;
-  createDirectory(path: string): Promise<void>;
-  rename(path: string, nextPath: string): Promise<void>;
-  delete(path: string, options?: { recursive?: boolean }): Promise<void>;
+  writeFile?: (path: string, contents: string) => Promise<void>;
+  createFile?: (path: string, contents?: string) => Promise<void>;
+  createDirectory?: (path: string) => Promise<void>;
+  rename?: (path: string, nextPath: string) => Promise<void>;
+  delete?: (path: string, options?: { recursive?: boolean }) => Promise<void>;
 };
 
 export type FileWorkspaceChromeTheme = {

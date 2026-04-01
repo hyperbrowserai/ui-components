@@ -1,54 +1,40 @@
 .hb-filesystem {
-  --hb-filesystem-accent: #1267d6;
-  --hb-filesystem-background: #eef3f7;
-  --hb-filesystem-border: #d7e0ea;
+  --hb-filesystem-accent: #2563eb;
+  --hb-filesystem-background: #f8fafc;
+  --hb-filesystem-border: #e2e8f0;
   --hb-filesystem-danger: #b42318;
-  --hb-filesystem-divider: #d7e0ea;
-  --hb-filesystem-editor-background: #fbfdff;
-  --hb-filesystem-panel: #ffffff;
-  --hb-filesystem-panel-muted: #f5f8fb;
-  --hb-filesystem-row-active: #dfeeff;
-  --hb-filesystem-row-hover: #eef5ff;
-  --hb-filesystem-shadow: 0 24px 48px rgba(15, 23, 42, 0.08);
+  --hb-filesystem-divider: #e2e8f0;
+  --hb-filesystem-editor-background: #ffffff;
+  --hb-filesystem-panel: #fcfdff;
+  --hb-filesystem-panel-muted: #f8fafc;
+  --hb-filesystem-row-active: #eaf2ff;
+  --hb-filesystem-row-hover: #f3f7ff;
+  --hb-filesystem-shadow: 0 16px 40px rgba(15, 23, 42, 0.06);
   --hb-filesystem-tab-active: #ffffff;
-  --hb-filesystem-tab-inactive: #edf3f8;
-  --hb-filesystem-text: #10243b;
-  --hb-filesystem-text-muted: #62748a;
+  --hb-filesystem-tab-inactive: #f4f7fb;
+  --hb-filesystem-text: #0f172a;
+  --hb-filesystem-text-muted: #64748b;
   --hb-filesystem-warning: #b54708;
-  background:
-    radial-gradient(circle at top left, rgba(18, 103, 214, 0.14), transparent 34%),
-    linear-gradient(180deg, var(--hb-filesystem-background) 0%, #f7fafc 100%);
+  background: linear-gradient(180deg, var(--hb-filesystem-background) 0%, #ffffff 100%);
   border: 1px solid var(--hb-filesystem-border);
-  border-radius: 24px;
+  border-radius: 16px;
   box-shadow: var(--hb-filesystem-shadow);
   color: var(--hb-filesystem-text);
   display: grid;
   gap: 0;
-  min-height: 720px;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  min-height: 680px;
   overflow: hidden;
-  position: relative;
-}
-
-.hb-filesystem__glow {
-  background: radial-gradient(circle, rgba(18, 103, 214, 0.18) 0%, transparent 72%);
-  inset: -10% auto auto -10%;
-  pointer-events: none;
-  position: absolute;
-  width: 320px;
-  height: 320px;
 }
 
 .hb-filesystem__header,
 .hb-filesystem__footer {
   align-items: center;
-  background: rgba(255, 255, 255, 0.8);
-  backdrop-filter: blur(12px);
+  background: rgba(255, 255, 255, 0.96);
   display: flex;
   gap: 1rem;
   justify-content: space-between;
-  padding: 1rem 1.25rem;
-  position: relative;
-  z-index: 1;
+  padding: 0.9rem 1rem;
 }
 
 .hb-filesystem__header {
@@ -58,18 +44,18 @@
 .hb-filesystem__footer {
   border-top: 1px solid var(--hb-filesystem-divider);
   color: var(--hb-filesystem-text-muted);
-  font-size: 0.92rem;
+  font-size: 0.86rem;
 }
 
 .hb-filesystem__titleBlock {
   display: grid;
-  gap: 0.18rem;
+  gap: 0.15rem;
 }
 
 .hb-filesystem__eyebrow,
-.hb-filesystem__sidebarEyebrow {
+.hb-filesystem__previewEyebrow {
   color: var(--hb-filesystem-accent);
-  font-size: 0.74rem;
+  font-size: 0.7rem;
   font-weight: 700;
   letter-spacing: 0.08em;
   margin: 0;
@@ -77,20 +63,17 @@
 }
 
 .hb-filesystem__title {
-  font-size: 1.15rem;
+  font-size: 1rem;
+  font-weight: 650;
   margin: 0;
 }
 
-.hb-filesystem__headerActions,
-.hb-filesystem__sidebarActions,
-.hb-filesystem__inlineFormActions {
+.hb-filesystem__headerActions {
   display: flex;
-  flex-wrap: wrap;
   gap: 0.5rem;
 }
 
 .hb-filesystem__actionButton,
-.hb-filesystem__miniButton,
 .hb-filesystem__tabButton,
 .hb-filesystem__tabClose,
 .hb-filesystem__treeToggle,
@@ -101,127 +84,138 @@
   font: inherit;
 }
 
-.hb-filesystem__actionButton,
-.hb-filesystem__miniButton {
+.hb-filesystem__actionButton {
+  align-items: center;
   background: var(--hb-filesystem-panel);
   border: 1px solid var(--hb-filesystem-border);
-  border-radius: 999px;
+  border-radius: 9px;
   cursor: pointer;
-  padding: 0.58rem 0.95rem;
-  transition: transform 140ms ease, background-color 140ms ease;
+  display: inline-flex;
+  gap: 0.45rem;
+  padding: 0.5rem 0.72rem;
+  transition:
+    background-color 140ms ease,
+    border-color 140ms ease,
+    color 140ms ease;
 }
 
-.hb-filesystem__actionButton:hover,
-.hb-filesystem__miniButton:hover {
+.hb-filesystem__actionButton:hover {
   background: var(--hb-filesystem-row-hover);
-  transform: translateY(-1px);
+  border-color: rgba(37, 99, 235, 0.22);
 }
 
-.hb-filesystem__miniButton[data-tone="danger"] {
-  color: var(--hb-filesystem-danger);
-}
-
-.hb-filesystem__actionButton:disabled,
-.hb-filesystem__miniButton:disabled {
-  cursor: not-allowed;
-  opacity: 0.5;
-  transform: none;
+.hb-filesystem__actionButton svg,
+.hb-filesystem__tabClose svg {
+  display: block;
+  height: 0.95rem;
+  width: 0.95rem;
 }
 
 .hb-filesystem__body {
   display: grid;
   gap: 0;
-  grid-template-columns: minmax(280px, 340px) 1fr;
+  grid-template-columns: minmax(250px, 290px) 1fr;
+  grid-template-rows: auto minmax(0, 1fr);
   min-height: 0;
-  position: relative;
-  z-index: 1;
+}
+
+.hb-filesystem__bodyHeader {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.96);
+  border-bottom: 1px solid var(--hb-filesystem-divider);
+  display: flex;
+  min-height: 2.75rem;
+}
+
+.hb-filesystem__bodyHeader--sidebar {
+  border-right: 1px solid var(--hb-filesystem-divider);
+  grid-column: 1;
+  grid-row: 1;
+  padding: 0.35rem 0.8rem;
+}
+
+.hb-filesystem__bodyHeader--workspace {
+  gap: 0.6rem;
+  grid-column: 2;
+  grid-row: 1;
+  padding: 0.35rem 0.8rem;
 }
 
 .hb-filesystem__sidebar {
   background: linear-gradient(180deg, var(--hb-filesystem-panel) 0%, var(--hb-filesystem-panel-muted) 100%);
   border-right: 1px solid var(--hb-filesystem-divider);
-  display: grid;
-  gap: 0.9rem;
+  grid-column: 1;
+  grid-row: 2;
   min-height: 0;
-  padding: 1rem;
 }
 
-.hb-filesystem__sidebarHeader {
-  display: grid;
-  gap: 0.8rem;
-}
-
-.hb-filesystem__sidebarPath {
-  color: var(--hb-filesystem-text-muted);
-  font-family: "IBM Plex Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
-  font-size: 0.82rem;
-  margin: 0.15rem 0 0;
-  overflow-wrap: anywhere;
-}
-
-.hb-filesystem__inlineForm {
-  background: rgba(255, 255, 255, 0.8);
-  border: 1px solid var(--hb-filesystem-border);
-  border-radius: 16px;
-  display: grid;
-  gap: 0.75rem;
-  padding: 0.85rem;
-}
-
-.hb-filesystem__inlineFormLabel {
-  color: var(--hb-filesystem-text-muted);
-  display: grid;
-  gap: 0.45rem;
-  font-size: 0.82rem;
+.hb-filesystem__sidebarTitle {
+  color: #475569;
+  font-size: 0.88rem;
   font-weight: 600;
-}
-
-.hb-filesystem__input {
-  background: var(--hb-filesystem-panel);
-  border: 1px solid var(--hb-filesystem-border);
-  border-radius: 12px;
-  color: var(--hb-filesystem-text);
-  font: inherit;
-  padding: 0.7rem 0.8rem;
+  margin: 0;
 }
 
 .hb-filesystem__tree {
   display: grid;
   align-content: start;
-  gap: 0.15rem;
+  gap: 0.05rem;
   min-height: 0;
   overflow: auto;
-  padding-inline-end: 0.35rem;
+  padding: 0.5rem 0.35rem 0.5rem 0.35rem;
 }
 
 .hb-filesystem__treeRow {
   align-items: center;
   display: grid;
-  grid-template-columns: 1.2rem 1fr;
+  grid-template-columns: 1rem 1fr;
+  min-height: 1.75rem;
 }
 
 .hb-filesystem__treeToggle,
 .hb-filesystem__treeTogglePlaceholder {
-  color: var(--hb-filesystem-text-muted);
+  color: #334155;
   display: inline-flex;
-  height: 1.4rem;
+  height: 1rem;
   justify-content: center;
-  width: 1.1rem;
+  width: 1rem;
 }
 
 .hb-filesystem__treeToggle {
+  align-items: center;
   cursor: pointer;
+  padding: 0;
+}
+
+.hb-filesystem__treeToggle:hover {
+  color: #0f172a;
+}
+
+.hb-filesystem__treeTogglePlaceholder {
+  visibility: hidden;
+}
+
+.hb-filesystem__treeChevron {
+  display: block;
+  height: 0.9rem;
+  transition: transform 140ms ease;
+  width: 0.9rem;
+}
+
+.hb-filesystem__treeChevron[data-expanded="true"] {
+  transform: rotate(90deg);
 }
 
 .hb-filesystem__treeLabel {
   align-items: center;
-  border-radius: 12px;
+  border-radius: 6px;
   cursor: pointer;
   display: inline-flex;
-  gap: 0.5rem;
+  font-size: 0.9rem;
+  gap: 0.35rem;
   justify-content: flex-start;
   min-width: 0;
-  padding: 0.48rem 0.6rem;
+  padding: 0.24rem 0.4rem;
   text-align: left;
 }
 
@@ -232,28 +226,24 @@
 }
 
 .hb-filesystem__treeLabel[data-selected="true"] {
-  background: var(--hb-filesystem-row-active);
+  background: #eef2f6;
 }
 
 .hb-filesystem__treeLabel[data-active="true"] {
-  box-shadow: inset 0 0 0 1px rgba(18, 103, 214, 0.24);
+  color: var(--hb-filesystem-text);
 }
 
-.hb-filesystem__treeBadge,
-.hb-filesystem__dirtyDot {
-  background: rgba(18, 103, 214, 0.12);
-  border-radius: 999px;
-  color: var(--hb-filesystem-accent);
-  font-size: 0.66rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  padding: 0.2rem 0.42rem;
-  text-transform: uppercase;
+.hb-filesystem__treeIcon,
+.hb-filesystem__treeMetaIcon {
+  color: #64748b;
+  display: inline-flex;
+  flex: 0 0 auto;
 }
 
-.hb-filesystem__dirtyDot {
-  background: rgba(181, 71, 8, 0.12);
-  color: var(--hb-filesystem-warning);
+.hb-filesystem__treeGlyph {
+  display: block;
+  height: 0.88rem;
+  width: 0.88rem;
 }
 
 .hb-filesystem__treeText {
@@ -264,142 +254,179 @@
 }
 
 .hb-filesystem__treeMeta {
+  align-items: center;
   color: var(--hb-filesystem-text-muted);
-  font-size: 0.74rem;
+  display: inline-flex;
+  font-size: 0.72rem;
+  gap: 0.25rem;
   margin-inline-start: auto;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.hb-filesystem__emptyMeta,
+.hb-filesystem__binaryMeta {
+  color: var(--hb-filesystem-text-muted);
+  font-size: 0.82rem;
+  line-height: 1.55;
+  margin: 0;
+}
+
+.hb-filesystem__treeMetaIcon {
+  height: 0.8rem;
+  width: 0.8rem;
 }
 
 .hb-filesystem__workspace {
-  background: linear-gradient(180deg, rgba(251, 253, 255, 0.92) 0%, var(--hb-filesystem-editor-background) 100%);
+  background: var(--hb-filesystem-editor-background);
   display: grid;
-  grid-template-rows: auto 1fr;
+  grid-template-rows: 1fr;
+  grid-column: 2;
+  grid-row: 2;
   min-height: 0;
 }
 
-.hb-filesystem__tabs {
-  align-items: end;
-  background: rgba(255, 255, 255, 0.72);
-  border-bottom: 1px solid var(--hb-filesystem-divider);
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
-  padding: 0.8rem 0.9rem 0;
+.hb-filesystem__preview,
+.hb-filesystem__empty {
+  display: grid;
+  min-height: 0;
 }
 
-.hb-filesystem__tab {
-  align-items: stretch;
-  background: var(--hb-filesystem-tab-inactive);
-  border: 1px solid var(--hb-filesystem-border);
-  border-bottom: 0;
-  border-top-left-radius: 14px;
-  border-top-right-radius: 14px;
-  display: inline-flex;
-  max-width: 280px;
-  min-width: 0;
-}
-
-.hb-filesystem__tab[data-active="true"] {
-  background: var(--hb-filesystem-tab-active);
-}
-
-.hb-filesystem__tabButton {
-  align-items: center;
-  cursor: pointer;
-  display: inline-flex;
-  gap: 0.5rem;
-  min-width: 0;
+.hb-filesystem__previewPathBar {
+  color: var(--hb-filesystem-text-muted);
+  display: block;
+  flex: 1 1 auto;
+  font-family: "IBM Plex Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 0.76rem;
   overflow: hidden;
-  padding: 0.68rem 0.9rem;
+  padding: 0;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.hb-filesystem__tabClose {
-  color: var(--hb-filesystem-text-muted);
+.hb-filesystem__previewPathBar[data-empty="true"] {
+  min-height: 1rem;
+  opacity: 0;
+}
+
+.hb-filesystem__copyButton {
+  align-items: center;
+  background: #ffffff;
+  border: 1px solid var(--hb-filesystem-border);
+  border-radius: 8px;
+  color: #475569;
   cursor: pointer;
-  padding: 0 0.8rem 0 0.2rem;
+  display: inline-flex;
+  flex: 0 0 auto;
+  height: 2rem;
+  justify-content: center;
+  width: 2rem;
 }
 
-.hb-filesystem__editorSurface,
-.hb-filesystem__editorFallback,
-.hb-filesystem__empty {
-  display: grid;
-  grid-template-rows: auto 1fr;
-  min-height: 0;
-  position: relative;
-}
-
-.hb-filesystem__editorHost,
-.hb-filesystem__editorTextarea,
-.hb-filesystem__empty {
-  min-height: 0;
-}
-
-.hb-filesystem__editorHost {
-  height: 100%;
-  min-height: 540px;
-}
-
-.hb-filesystem__editorTextarea {
-  background: var(--hb-filesystem-editor-background);
-  border: 0;
+.hb-filesystem__copyButton:hover {
+  background: var(--hb-filesystem-row-hover);
   color: var(--hb-filesystem-text);
-  font: 14px/1.6 "IBM Plex Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
-  min-height: 540px;
-  outline: none;
-  padding: 1.1rem 1.25rem 1.35rem;
-  resize: none;
+}
+
+.hb-filesystem__copyButton svg {
+  display: block;
+  height: 0.95rem;
+  width: 0.95rem;
 }
 
 .hb-filesystem__editorBanner {
+  background: rgba(181, 71, 8, 0.07);
   border-bottom: 1px solid var(--hb-filesystem-divider);
   color: var(--hb-filesystem-warning);
-  font-size: 0.86rem;
-  padding: 0.78rem 1rem;
+  font-size: 0.82rem;
+  padding: 0.72rem 1rem;
 }
 
-.hb-filesystem__editorBanner[data-tone="warning"] {
-  background: rgba(181, 71, 8, 0.08);
+.hb-filesystem__codeFrame {
+  background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+  display: grid;
+  grid-template-columns: auto 1fr;
+  min-height: 0;
 }
 
-.hb-filesystem__overlay {
+.hb-filesystem__codeGutter,
+.hb-filesystem__codeContent {
+  font-family: var(--hb-filesystem-code-font-family);
+  font-size: var(--hb-filesystem-code-font-size);
+  line-height: var(--hb-filesystem-code-line-height);
+  margin: 0;
+  min-height: 100%;
+  overflow: auto;
+  padding: 1rem 0;
+  tab-size: 2;
+}
+
+.hb-filesystem__codeGutter {
+  background: transparent;
+  border-right: 1px solid var(--hb-filesystem-divider);
+  color: #94a3b8;
+  min-width: 3.2rem;
+  padding-inline: 0.85rem 0.7rem;
+  text-align: right;
+  user-select: none;
+}
+
+.hb-filesystem__codeContent {
+  color: var(--hb-filesystem-text);
+  padding-inline: 1rem 1.25rem;
+  white-space: pre;
+}
+
+.hb-filesystem__binaryState {
+  align-content: center;
+  display: grid;
+  gap: 0.7rem;
+  justify-items: center;
+  min-height: 420px;
+  padding: 2.25rem;
+  text-align: center;
+}
+
+.hb-filesystem__binaryIcon {
   align-items: center;
-  background: rgba(251, 253, 255, 0.72);
+  background: #f8fafc;
+  border: 1px solid var(--hb-filesystem-border);
+  border-radius: 12px;
   color: var(--hb-filesystem-text-muted);
   display: inline-flex;
-  inset: 0;
+  height: 3rem;
   justify-content: center;
-  pointer-events: none;
-  position: absolute;
-  z-index: 2;
+  width: 3rem;
+}
+
+.hb-filesystem__binaryIcon svg {
+  display: block;
+  height: 1.4rem;
+  width: 1.4rem;
+}
+
+.hb-filesystem__binaryTitle,
+.hb-filesystem__emptyTitle {
+  font-size: 1rem;
+  font-weight: 620;
+  margin: 0;
 }
 
 .hb-filesystem__empty {
   align-content: center;
-  background: radial-gradient(circle at top, rgba(18, 103, 214, 0.08), transparent 44%),
-    var(--hb-filesystem-editor-background);
+  background:
+    radial-gradient(circle at top, rgba(37, 99, 235, 0.05), transparent 36%),
+    #ffffff;
   justify-items: center;
   padding: 2.5rem;
   text-align: center;
 }
 
-.hb-filesystem__emptyTitle {
-  font-size: 1.08rem;
-  margin: 0;
-}
-
-.hb-filesystem__emptyMeta {
-  color: var(--hb-filesystem-text-muted);
-  margin: 0.35rem 0 0;
-  max-width: 34rem;
-}
-
 .hb-filesystem__footerLabel {
   color: var(--hb-filesystem-text);
-  font-weight: 700;
+  font-weight: 650;
 }
 
 .hb-filesystem__footerMeta {
@@ -411,15 +438,45 @@
 @media (max-width: 960px) {
   .hb-filesystem__body {
     grid-template-columns: 1fr;
+    grid-template-rows: auto minmax(220px, auto) auto minmax(0, 1fr);
+  }
+
+  .hb-filesystem__bodyHeader--sidebar,
+  .hb-filesystem__sidebar,
+  .hb-filesystem__bodyHeader--workspace,
+  .hb-filesystem__workspace {
+    grid-column: 1;
+  }
+
+  .hb-filesystem__bodyHeader--sidebar {
+    border-right: 0;
+    grid-row: 1;
   }
 
   .hb-filesystem__sidebar {
-    border-right: 0;
     border-bottom: 1px solid var(--hb-filesystem-divider);
+    border-right: 0;
+    grid-row: 2;
   }
 
-  .hb-filesystem__editorHost,
-  .hb-filesystem__editorTextarea {
-    min-height: 420px;
+  .hb-filesystem__bodyHeader--workspace {
+    grid-row: 3;
+    padding: 0.35rem 0.7rem;
+  }
+
+  .hb-filesystem__workspace {
+    grid-row: 4;
+  }
+
+  .hb-filesystem__codeFrame {
+    grid-template-columns: 1fr;
+  }
+
+  .hb-filesystem__codeGutter {
+    display: none;
+  }
+
+  .hb-filesystem__binaryState {
+    min-height: 280px;
   }
 }

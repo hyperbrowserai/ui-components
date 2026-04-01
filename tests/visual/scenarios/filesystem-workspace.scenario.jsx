@@ -440,10 +440,6 @@ function FilesystemWorkspaceDemo({ components }) {
     adapterRef.current = createMockFilesystemAdapter();
   }
 
-  React.useEffect(() => {
-    components.configureMonacoLoader?.({ vsPath: "/dist/monaco/vs" });
-  }, [components]);
-
   return (
     <div style={{ display: "grid", gap: "1rem" }}>
       <Card>
@@ -516,7 +512,8 @@ function FilesystemWorkspaceDemo({ components }) {
             <strong style={{ color: "#132238" }}>Event log</strong>
             <span>{eventLog}</span>
             <span>
-              Open `large.log` and `logo.png` to confirm the read-only v1 rules.
+              Open `large.log` and `logo.png` to confirm the preview-only
+              fallback behavior.
             </span>
           </div>
         </div>
@@ -525,17 +522,10 @@ function FilesystemWorkspaceDemo({ components }) {
         adapter={adapterRef.current}
         initialPath={initialPath}
         key={`${theme}:${initialPath}`}
-        onCreateDirectory={(path) => setEventLog(`Created directory ${path}`)}
-        onCreateFile={(path) => setEventLog(`Created file ${path}`)}
-        onDelete={(path) => setEventLog(`Deleted ${path}`)}
         onOpenFile={(path) => setEventLog(`Opened ${path}`)}
-        onRename={(path, nextPath) =>
-          setEventLog(`Renamed ${path} to ${nextPath}`)
-        }
-        onSaveFile={(path) => setEventLog(`Saved ${path}`)}
         style={{ minHeight: "780px" }}
         theme={theme}
-        title="Filesystem Workspace"
+        title="Filesystem Browser"
       />
     </div>
   );

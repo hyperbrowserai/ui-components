@@ -27,6 +27,22 @@ export {
   type UseHyperbrowserHlsPlaybackResult,
 } from "./hooks/useHyperbrowserHlsPlayback";
 
+export { FileWorkspace } from "./components/filesystem/FileWorkspace";
+
+export {
+  defaultFileWorkspaceTheme,
+  fileWorkspaceThemePresets,
+  resolveFileWorkspaceTheme,
+} from "./components/filesystem/fileWorkspaceThemes";
+
+export {
+  HyperbrowserFileWorkspace,
+  createHyperbrowserFilesystemAdapter,
+  type HyperbrowserFileWorkspaceProps,
+  type HyperbrowserFilesystemAdapterOptions,
+  type HyperbrowserFilesystemBrowserAuthResolver,
+} from "./components/hyperbrowser/HyperbrowserFileWorkspace";
+
 export { BaseTerminal } from "./components/terminal/BaseTerminal";
 export { TerminalSurface } from "./components/terminal/TerminalSurface";
 export { useTerminal } from "./components/terminal/useTerminal";
@@ -40,6 +56,20 @@ export {
   resolveTerminalTheme,
   terminalPresets,
 } from "./components/terminal/terminalThemes";
+
+export type {
+  FileDirectoryListing,
+  FileDocument,
+  FileEntry,
+  FileEntryType,
+  FileWorkspaceAdapter,
+  FileWorkspaceChromeTheme,
+  FileWorkspaceEditorTheme,
+  FileWorkspaceProps,
+  FileWorkspaceTheme,
+  FileWorkspaceThemeName,
+  ResolvedFileWorkspaceTheme,
+} from "./components/filesystem/types";
 
 export type {
   ResolvedTerminalTheme,
