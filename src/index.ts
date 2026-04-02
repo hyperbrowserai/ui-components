@@ -11,14 +11,16 @@ export {
   HyperbrowserTerminal,
   createHyperbrowserPtyConnection,
   useSandboxTerminalConnection,
-  type HyperbrowserPtyBrowserAuthParams,
-  type HyperbrowserPtyBrowserAuthResolver,
   type HyperbrowserPtyConnectionOptions,
   type HyperbrowserPtyStatus,
-  type HyperbrowserRuntimeBrowserAuth,
   type HyperbrowserTerminalProps,
   type UseSandboxTerminalConnectionOptions,
 } from "./components/hyperbrowser/HyperbrowserTerminal";
+
+export {
+  HyperbrowserRuntimeProvider,
+  useHyperbrowserRuntime,
+} from "./components/hyperbrowser/HyperbrowserRuntimeProvider";
 
 export {
   useHyperbrowserHlsPlayback,
@@ -44,8 +46,6 @@ export {
   createHyperbrowserFilesystemAdapter,
   type HyperbrowserFileWorkspaceProps,
   type HyperbrowserFilesystemAdapterOptions,
-  type HyperbrowserFilesystemBrowserAuthParams,
-  type HyperbrowserFilesystemBrowserAuthResolver,
 } from "./components/hyperbrowser/HyperbrowserFileWorkspace";
 
 export { BaseTerminal } from "./components/terminal/BaseTerminal";
@@ -80,6 +80,14 @@ export type {
   FileWorkspaceThemeName,
   ResolvedFileWorkspaceTheme,
 } from "./components/filesystem/types";
+
+export type {
+  HyperbrowserRuntimeAccess,
+  HyperbrowserRuntimeAccessParams,
+  HyperbrowserRuntimeAccessResolver,
+  HyperbrowserRuntimeLoader,
+  HyperbrowserRuntimeLoaderParams,
+} from "./components/hyperbrowser/hyperbrowser-runtime";
 
 export type {
   ResolvedTerminalTheme,

@@ -3,13 +3,10 @@ import type { TerminalConnection } from "../terminal/types";
 import {
   createHyperbrowserPtyConnection,
   type HyperbrowserPtyConnectionOptions,
-  type HyperbrowserRuntimeBrowserAuth,
 } from "./hyperbrowser-pty-connection";
 
 export type UseSandboxTerminalConnectionOptions =
-  HyperbrowserPtyConnectionOptions & {
-    browserAuth?: HyperbrowserRuntimeBrowserAuth;
-  };
+  HyperbrowserPtyConnectionOptions;
 
 const DEFAULT_CLOSE_BEHAVIOR = "disconnect";
 const DEFAULT_COMMAND = "bash";
@@ -18,7 +15,6 @@ const DEFAULT_CREATE_RETRY_DELAY_MS = 700;
 const DEFAULT_INPUT_BATCH_DELAY_MS = 16;
 const DEFAULT_INPUT_BATCH_MAX_BYTES = 8192;
 const DEFAULT_RECONNECT_RETRY_DELAY_MS = 1000;
-const DEFAULT_HYPERBROWSER_API_BASE_URL = "https://api.hyperbrowser.ai/api";
 
 const functionIdentityMap = new WeakMap<Function, number>();
 let nextFunctionIdentity = 1;
@@ -61,95 +57,11 @@ function serializeStringRecord(
   );
 }
 
-function serializeHeaders(
-  value: HyperbrowserPtyConnectionOptions["apiHeaders"],
-): string {
-  if (!value) {
-    return "";
-  }
-  if (typeof value === "function") {
-    return getFunctionIdentity(value);
-  }
-
-  return JSON.stringify(
-    Array.from(new Headers(value).entries()).sort(
-      ([leftKey, leftValue], [rightKey, rightValue]) => {
-        if (leftKey === rightKey) {
-          return leftValue.localeCompare(rightValue);
-        }
-        return leftKey.localeCompare(rightKey);
-      },
-    ),
-  );
-}
-
-function resolveBootstrapUrl(
-  options: UseSandboxTerminalConnectionOptions,
-): string | undefined {
-  if (options.bootstrapUrl) {
-    return options.bootstrapUrl;
-  }
-  if (options.getRuntimeBrowserAuth) {
-    return undefined;
-  }
-  return options.browserAuth?.bootstrapUrl;
-}
-
-function resolveBrowserAuthEndpoint(
-  options: UseSandboxTerminalConnectionOptions,
-): string | undefined {
-  if (!options.sandboxId) {
-    return undefined;
-  }
-
-  if (options.getRuntimeBrowserAuth) {
-    return new URL(
-      `sandbox/${encodeURIComponent(options.sandboxId)}/runtime/browser-auth`,
-      `${options.apiBaseUrl ?? DEFAULT_HYPERBROWSER_API_BASE_URL}/`,
-    ).toString();
-  }
-
-  if (!options.apiBaseUrl) {
-    return undefined;
-  }
-
-  return new URL(
-    `sandbox/${encodeURIComponent(options.sandboxId)}/runtime/browser-auth`,
-    options.apiBaseUrl.endsWith("/")
-      ? options.apiBaseUrl
-      : `${options.apiBaseUrl}/`,
-  ).toString();
-}
-
-function getAuthSourceIdentity(
-  options: UseSandboxTerminalConnectionOptions,
-): string {
-  if (options.getRuntimeBrowserAuth) {
-    return [
-      "resolver",
-      getFunctionIdentity(options.getRuntimeBrowserAuth),
-      resolveBrowserAuthEndpoint(options) ?? "",
-    ].join("|");
-  }
-
-  const bootstrapUrl = resolveBootstrapUrl(options);
-  if (bootstrapUrl) {
-    return ["direct", bootstrapUrl].join("|");
-  }
-
-  return [
-    "api",
-    resolveBrowserAuthEndpoint(options) ?? "",
-    options.apiCredentials ?? "",
-    serializeHeaders(options.apiHeaders),
-  ].join("|");
-}
-
 export function getSandboxTerminalConnectionIdentity(
   options: UseSandboxTerminalConnectionOptions,
 ): string {
   const identityParts = [
-    getAuthSourceIdentity(options),
+    getFunctionIdentity(options.getRuntimeAccess),
     options.existingPtyId ?? "",
     options.closeBehavior ?? DEFAULT_CLOSE_BEHAVIOR,
     options.killSignal ?? "",
@@ -179,17 +91,6 @@ export function getSandboxTerminalConnectionIdentity(
   return identityParts.join("|");
 }
 
-function toPtyConnectionOptions(
-  options: UseSandboxTerminalConnectionOptions,
-): HyperbrowserPtyConnectionOptions {
-  const { browserAuth, ...connectionOptions } = options;
-
-  return {
-    ...connectionOptions,
-    bootstrapUrl: resolveBootstrapUrl(options),
-  };
-}
-
 export function useSandboxTerminalConnection(
   options: UseSandboxTerminalConnectionOptions,
 ): TerminalConnection {
@@ -201,9 +102,7 @@ export function useSandboxTerminalConnection(
 
   if (!recordRef.current || recordRef.current.identity !== identity) {
     recordRef.current = {
-      connection: createHyperbrowserPtyConnection(
-        toPtyConnectionOptions(options),
-      ),
+      connection: createHyperbrowserPtyConnection(options),
       identity,
     };
   }
