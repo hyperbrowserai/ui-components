@@ -452,14 +452,6 @@
   white-space: nowrap;
 }
 
-.hb-filesystem__emptyMeta,
-.hb-filesystem__binaryMeta {
-  color: var(--hb-filesystem-text-muted);
-  font-size: 0.82rem;
-  line-height: 1.55;
-  margin: 0;
-}
-
 .hb-filesystem__treeMetaIcon {
   height: 0.8rem;
   width: 0.8rem;
@@ -678,37 +670,59 @@
 
 .hb-filesystem__binaryState {
   align-content: center;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.94)),
+    #ffffff;
+  border: 1px solid var(--hb-filesystem-border);
+  border-radius: 20px;
+  box-shadow:
+    0 20px 44px rgba(15, 23, 42, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.82);
   display: grid;
-  gap: 0.7rem;
+  gap: 1rem;
   justify-items: center;
-  min-height: 420px;
-  padding: 2.25rem;
+  max-width: 24rem;
+  padding: 2rem 1.6rem;
   text-align: center;
+  width: min(100%, 24rem);
+}
+
+.hb-filesystem__binaryShell {
+  align-content: center;
+  background:
+    radial-gradient(circle at top, rgba(37, 99, 235, 0.06), transparent 34%),
+    linear-gradient(180deg, rgba(248, 250, 252, 0.72), rgba(255, 255, 255, 0.94));
+  display: grid;
+  justify-items: center;
+  min-height: 100%;
+  padding: 1.5rem;
 }
 
 .hb-filesystem__binaryIcon {
   align-items: center;
-  background: #f8fafc;
-  border: 1px solid var(--hb-filesystem-border);
-  border-radius: 12px;
-  color: var(--hb-filesystem-text-muted);
+  background: rgba(37, 99, 235, 0.08);
+  border: 1px solid rgba(37, 99, 235, 0.14);
+  border-radius: 14px;
+  color: var(--hb-filesystem-accent);
   display: inline-flex;
-  height: 3rem;
+  height: 3.2rem;
   justify-content: center;
-  width: 3rem;
+  width: 3.2rem;
 }
 
 .hb-filesystem__binaryIcon svg {
   display: block;
-  height: 1.4rem;
-  width: 1.4rem;
+  height: 1.5rem;
+  width: 1.5rem;
 }
 
-.hb-filesystem__binaryTitle,
-.hb-filesystem__emptyTitle {
-  font-size: 1rem;
-  font-weight: 620;
-  margin: 0;
+.hb-filesystem__binaryHeadline {
+  color: var(--hb-filesystem-text);
+  font-size: clamp(1.125rem, 0.95rem + 0.8vw, 1.5rem);
+  font-weight: 760;
+  letter-spacing: 0.08em;
+  line-height: 1.15;
+  text-transform: uppercase;
 }
 
 .hb-filesystem__empty {
@@ -778,7 +792,12 @@
   }
 
   .hb-filesystem__binaryState {
-    min-height: 280px;
+    padding: 1.1rem 1rem 1.2rem;
+    width: min(100%, 100%);
+  }
+
+  .hb-filesystem__binaryShell {
+    padding: 1rem;
   }
 
   .hb-filesystem__assetFrame {
