@@ -82,10 +82,18 @@ function createMockFilesystemAdapter() {
       "/workspace/assets/logo.png",
       {
         contentType: "image/png",
-        contents: "",
-        encoding: "base64",
-        readOnlyReason:
-          "Binary file preview is not available in the visual harness.",
+        previewKind: "image",
+        type: "file",
+        url:
+          "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9WlH0jUAAAAASUVORK5CYII=",
+      },
+    ],
+    [
+      "/workspace/assets/archive.zip",
+      {
+        contentType: "application/zip",
+        previewKind: "binary",
+        readOnlyReason: "Archive previews are intentionally disabled in the visual harness.",
         type: "file",
       },
     ],
@@ -142,6 +150,10 @@ function createMockFilesystemAdapter() {
     [
       "/workspace/assets/logo.png",
       { name: "logo.png", path: "/workspace/assets/logo.png", type: "file" },
+    ],
+    [
+      "/workspace/assets/archive.zip",
+      { name: "archive.zip", path: "/workspace/assets/archive.zip", type: "file" },
     ],
     [
       "/tmp/notes.txt",
@@ -296,28 +308,31 @@ function createMockFilesystemAdapter() {
     async stat(path) {
       return cloneEntry(normalizePath(path));
     },
-    async readFile(path) {
+    async previewFile(path) {
       const normalizedPath = normalizePath(path);
       ensureFile(normalizedPath);
       const record = files.get(normalizedPath);
-      const isBinary =
-        record.contentType &&
-        !record.contentType.startsWith("text/") &&
-        record.contentType !== "application/typescript";
-      if (isBinary) {
+      if (record.previewKind === "image") {
         return {
           contentType: record.contentType,
-          contents: "",
-          encoding: record.encoding,
+          kind: "image",
           path: normalizedPath,
-          readOnly: true,
-          readOnlyReason: record.readOnlyReason,
+          url: record.url,
+        };
+      }
+      if (record.previewKind === "binary") {
+        return {
+          contentType: record.contentType,
+          kind: "binary",
+          path: normalizedPath,
+          reason: record.readOnlyReason,
         };
       }
       return {
         contentType: record.contentType,
         contents: record.contents,
         encoding: record.encoding,
+        kind: "text",
         path: normalizedPath,
         readOnly: Boolean(record.truncated),
         readOnlyReason: record.truncated
@@ -430,19 +445,20 @@ function ControlLabel({ children }) {
 
 function FilesystemWorkspaceDemo({ components }) {
   const adapterRef = React.useRef(null);
-  const [theme, setTheme] = React.useState("atlas");
-  const [initialPath, setInitialPath] = React.useState(
-    "/workspace/src/index.ts",
-  );
+  const [preset, setPreset] = React.useState("atlas");
+  const [appearance, setAppearance] = React.useState("light");
+  const [workspacePath, setWorkspacePath] = React.useState("/workspace");
   const [eventLog, setEventLog] = React.useState("Ready.");
+  const fileWorkspacePresets =
+    components.fileWorkspacePresets ?? components.fileWorkspaceThemePresets ?? {};
+  const filesystemTheme =
+    typeof components.createFileWorkspaceTheme === "function"
+      ? components.createFileWorkspaceTheme(preset, { appearance })
+      : { appearance, preset };
 
   if (!adapterRef.current) {
     adapterRef.current = createMockFilesystemAdapter();
   }
-
-  React.useEffect(() => {
-    components.configureMonacoLoader?.({ vsPath: "/dist/monaco/vs" });
-  }, [components]);
 
   return (
     <div style={{ display: "grid", gap: "1rem" }}>
@@ -460,10 +476,10 @@ function FilesystemWorkspaceDemo({ components }) {
           }}
         >
           <ControlLabel>
-            Theme
+            Preset
             <select
-              value={theme}
-              onChange={(event) => setTheme(event.target.value)}
+              value={preset}
+              onChange={(event) => setPreset(event.target.value)}
               style={{
                 border: "1px solid #cbd5e1",
                 borderRadius: "10px",
@@ -471,7 +487,7 @@ function FilesystemWorkspaceDemo({ components }) {
                 padding: "0.6rem",
               }}
             >
-              {Object.entries(components.fileWorkspaceThemePresets ?? {}).map(
+              {Object.entries(fileWorkspacePresets).map(
                 ([themeName, value]) => (
                   <option key={themeName} value={themeName}>
                     {value.label}
@@ -481,10 +497,10 @@ function FilesystemWorkspaceDemo({ components }) {
             </select>
           </ControlLabel>
           <ControlLabel>
-            Initial path
+            Appearance
             <select
-              value={initialPath}
-              onChange={(event) => setInitialPath(event.target.value)}
+              value={appearance}
+              onChange={(event) => setAppearance(event.target.value)}
               style={{
                 border: "1px solid #cbd5e1",
                 borderRadius: "10px",
@@ -492,15 +508,29 @@ function FilesystemWorkspaceDemo({ components }) {
                 padding: "0.6rem",
               }}
             >
-              <option value="/workspace/src/index.ts">
-                /workspace/src/index.ts
-              </option>
-              <option value="/workspace/src/large.log">
-                /workspace/src/large.log
-              </option>
-              <option value="/workspace/assets/logo.png">
-                /workspace/assets/logo.png
-              </option>
+              <option value="light">Light</option>
+              <option value="dark">Dark</option>
+            </select>
+          </ControlLabel>
+          <ControlLabel>
+            Workspace path
+            <select
+              value={workspacePath}
+              onChange={(event) => {
+                const nextWorkspacePath = event.target.value;
+                setWorkspacePath(nextWorkspacePath);
+                setEventLog(`Workspace: ${nextWorkspacePath}`);
+              }}
+              style={{
+                border: "1px solid #cbd5e1",
+                borderRadius: "10px",
+                font: "inherit",
+                padding: "0.6rem",
+              }}
+            >
+              <option value="/">/</option>
+              <option value="/workspace">/workspace</option>
+              <option value="/workspace/src">/workspace/src</option>
               <option value="/tmp">/tmp</option>
             </select>
           </ControlLabel>
@@ -516,26 +546,23 @@ function FilesystemWorkspaceDemo({ components }) {
             <strong style={{ color: "#132238" }}>Event log</strong>
             <span>{eventLog}</span>
             <span>
-              Open `large.log` and `logo.png` to confirm the read-only v1 rules.
+              Open `large.log`, `logo.png`, and `archive.zip` to exercise text,
+              image, and binary preview states.
             </span>
           </div>
         </div>
       </Card>
       <components.FileWorkspace
         adapter={adapterRef.current}
-        initialPath={initialPath}
-        key={`${theme}:${initialPath}`}
-        onCreateDirectory={(path) => setEventLog(`Created directory ${path}`)}
-        onCreateFile={(path) => setEventLog(`Created file ${path}`)}
-        onDelete={(path) => setEventLog(`Deleted ${path}`)}
         onOpenFile={(path) => setEventLog(`Opened ${path}`)}
-        onRename={(path, nextPath) =>
-          setEventLog(`Renamed ${path} to ${nextPath}`)
-        }
-        onSaveFile={(path) => setEventLog(`Saved ${path}`)}
+        onWorkspacePathChange={(path) => {
+          setWorkspacePath(path);
+          setEventLog(`Workspace: ${path}`);
+        }}
         style={{ minHeight: "780px" }}
-        theme={theme}
-        title="Filesystem Workspace"
+        {...filesystemTheme}
+        title="Filesystem Browser"
+        workspacePath={workspacePath}
       />
     </div>
   );

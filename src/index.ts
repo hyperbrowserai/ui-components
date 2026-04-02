@@ -11,14 +11,16 @@ export {
   HyperbrowserTerminal,
   createHyperbrowserPtyConnection,
   useSandboxTerminalConnection,
-  type HyperbrowserPtyBrowserAuthParams,
-  type HyperbrowserPtyBrowserAuthResolver,
   type HyperbrowserPtyConnectionOptions,
   type HyperbrowserPtyStatus,
-  type HyperbrowserRuntimeBrowserAuth,
   type HyperbrowserTerminalProps,
   type UseSandboxTerminalConnectionOptions,
 } from "./components/hyperbrowser/HyperbrowserTerminal";
+
+export {
+  HyperbrowserRuntimeProvider,
+  useHyperbrowserRuntime,
+} from "./components/hyperbrowser/HyperbrowserRuntimeProvider";
 
 export {
   useHyperbrowserHlsPlayback,
@@ -26,6 +28,25 @@ export {
   type UseHyperbrowserHlsPlaybackParams,
   type UseHyperbrowserHlsPlaybackResult,
 } from "./hooks/useHyperbrowserHlsPlayback";
+
+export { FileWorkspace } from "./components/filesystem/FileWorkspace";
+
+export {
+  createFileWorkspaceTheme,
+  defaultFileWorkspaceAppearance,
+  defaultFileWorkspacePreset,
+  defaultFileWorkspaceTheme,
+  fileWorkspacePresets,
+  fileWorkspaceThemePresets,
+  resolveFileWorkspaceTheme,
+} from "./components/filesystem/fileWorkspaceThemes";
+
+export {
+  HyperbrowserFileWorkspace,
+  createHyperbrowserFilesystemAdapter,
+  type HyperbrowserFileWorkspaceProps,
+  type HyperbrowserFilesystemAdapterOptions,
+} from "./components/hyperbrowser/HyperbrowserFileWorkspace";
 
 export { BaseTerminal } from "./components/terminal/BaseTerminal";
 export { TerminalSurface } from "./components/terminal/TerminalSurface";
@@ -40,6 +61,33 @@ export {
   resolveTerminalTheme,
   terminalPresets,
 } from "./components/terminal/terminalThemes";
+
+export type {
+  FileWorkspaceAppearance,
+  FileDirectoryListing,
+  FileEntry,
+  FileEntryType,
+  FilePreview,
+  FilePreviewKind,
+  FileWorkspacePreset,
+  FileWorkspacePresetName,
+  FileWorkspaceAdapter,
+  FileWorkspaceChromeTheme,
+  FileWorkspaceEditorTheme,
+  FileWorkspaceProps,
+  FileWorkspaceSurfaceTheme,
+  FileWorkspaceTheme,
+  FileWorkspaceThemeName,
+  ResolvedFileWorkspaceTheme,
+} from "./components/filesystem/types";
+
+export type {
+  HyperbrowserRuntimeAccess,
+  HyperbrowserRuntimeAccessParams,
+  HyperbrowserRuntimeAccessResolver,
+  HyperbrowserRuntimeLoader,
+  HyperbrowserRuntimeLoaderParams,
+} from "./components/hyperbrowser/hyperbrowser-runtime";
 
 export type {
   ResolvedTerminalTheme,

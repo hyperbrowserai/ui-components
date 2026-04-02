@@ -8,26 +8,10 @@ import {
   getBaseName,
   getDirName,
   isPathWithin,
-  isRootPath,
-  joinFilePath,
   normalizeFilePath,
 } from "./filePath";
 import { resolveFileWorkspaceTheme } from "./fileWorkspaceThemes";
-import type { FileDocument, FileEntry, FileWorkspaceProps } from "./types";
-
-type WorkspaceDocument = FileDocument & {
-  savedContents: string;
-};
-
-type PendingAction =
-  | {
-      directoryPath: string;
-      type: "create-directory" | "create-file";
-    }
-  | {
-      path: string;
-      type: "rename";
-    };
+import type { FileEntry, FilePreview, FileWorkspaceProps } from "./types";
 
 function toThemeStyle(
   theme: ReturnType<typeof resolveFileWorkspaceTheme>
@@ -44,25 +28,10 @@ function toThemeStyle(
     "--hb-filesystem-row-active": theme.chrome.rowActive,
     "--hb-filesystem-row-hover": theme.chrome.rowHover,
     "--hb-filesystem-shadow": theme.chrome.shadow,
-    "--hb-filesystem-tab-active": theme.chrome.tabActive,
-    "--hb-filesystem-tab-inactive": theme.chrome.tabInactive,
     "--hb-filesystem-text": theme.chrome.text,
     "--hb-filesystem-text-muted": theme.chrome.textMuted,
     "--hb-filesystem-warning": theme.chrome.warning,
   } as CSSProperties;
-}
-
-function toStatusLabel(document: WorkspaceDocument | null): string {
-  if (!document) {
-    return "No file open";
-  }
-  if (document.readOnly) {
-    return "Read only";
-  }
-  if (document.contents !== document.savedContents) {
-    return "Unsaved changes";
-  }
-  return "Synced";
 }
 
 function toErrorMessage(error: unknown): string {
@@ -70,6 +39,20 @@ function toErrorMessage(error: unknown): string {
     return error.message;
   }
   return "An unexpected filesystem error occurred.";
+}
+
+function isPathNotFoundError(error: unknown): boolean {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  const message = error.message.toLowerCase();
+  return (
+    message.includes("not found") ||
+    message.includes("no such file") ||
+    message.includes("no such directory") ||
+    message.includes("enoent")
+  );
 }
 
 function sortEntries(entries: FileEntry[]): FileEntry[] {
@@ -81,25 +64,179 @@ function sortEntries(entries: FileEntry[]): FileEntry[] {
   });
 }
 
+function CopyIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 16 16" fill="none">
+      <path
+        d="M6 3.5h6.25A1.25 1.25 0 0 1 13.5 4.75V11"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.3"
+      />
+      <path
+        d="M3.75 6h6.5c.69 0 1.25.56 1.25 1.25v5c0 .69-.56 1.25-1.25 1.25h-6.5C3.06 13.5 2.5 12.94 2.5 12.25v-5C2.5 6.56 3.06 6 3.75 6Z"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.3"
+      />
+    </svg>
+  );
+}
+
+function CheckIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 16 16" fill="none">
+      <path
+        d="m3.75 8.5 2.5 2.5 6-6"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.5"
+      />
+    </svg>
+  );
+}
+
+type WorkspacePickerOption = {
+  isParent?: boolean;
+  path: string;
+};
+
+function WorkspaceIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 16 16" fill="none">
+      <path
+        d="M1.75 4.75a1.5 1.5 0 0 1 1.5-1.5h2.4l1.1 1.2H12.75a1.5 1.5 0 0 1 1.5 1.5v5.3a1.5 1.5 0 0 1-1.5 1.5H3.25a1.5 1.5 0 0 1-1.5-1.5v-6.5Z"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.2"
+      />
+    </svg>
+  );
+}
+
+function ChevronDownIcon({ open }: { open: boolean }) {
+  return (
+    <svg
+      aria-hidden="true"
+      className="hb-filesystem__workspaceTriggerChevron"
+      data-open={open ? "true" : undefined}
+      viewBox="0 0 16 16"
+      fill="none"
+    >
+      <path
+        d="M4.5 6.25 8 9.75l3.5-3.5"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.5"
+      />
+    </svg>
+  );
+}
+
+function ParentDirectoryIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 16 16" fill="none">
+      <path
+        d="M6.25 4 3.75 6.5 6.25 9"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.3"
+      />
+      <path
+        d="M4 6.5h6.5"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.3"
+      />
+    </svg>
+  );
+}
+
+function toDirectoryInputValue(path: string): string {
+  const normalizedPath = normalizeFilePath(path);
+  if (normalizedPath === "/") {
+    return "/";
+  }
+  return `${normalizedPath}/`;
+}
+
+function toWorkspaceLabel(path: string): string {
+  const normalizedPath = normalizeFilePath(path);
+  if (normalizedPath === "/") {
+    return "/";
+  }
+  return getBaseName(normalizedPath);
+}
+
+function getExpandedWorkspacePaths(
+  workspacePath: string,
+  activeDocumentPath: string | null
+): string[] {
+  const nextPaths = new Set(getAncestorPaths(workspacePath));
+
+  if (!activeDocumentPath || !isPathWithin(workspacePath, activeDocumentPath)) {
+    return Array.from(nextPaths);
+  }
+
+  for (const ancestor of getAncestorPaths(getDirName(activeDocumentPath))) {
+    if (ancestor === "/" || isPathWithin(workspacePath, ancestor)) {
+      nextPaths.add(ancestor);
+    }
+  }
+
+  return Array.from(nextPaths);
+}
+
+type DirectoryLoadOptions = {
+  reportError?: boolean;
+  throwOnError?: boolean;
+};
+
 export function FileWorkspace({
   adapter,
+  appearance,
   className,
-  initialPath = "/",
-  onCreateDirectory,
-  onCreateFile,
-  onDelete,
+  chromeTheme,
+  editorTheme,
   onError,
   onOpenFile,
-  onRename,
-  onSaveFile,
-  readOnly = false,
+  onWorkspacePathChange,
+  preset,
   style,
   theme,
-  title = "Filesystem Workspace",
+  title = "Filesystem Browser",
+  workspacePath,
 }: FileWorkspaceProps) {
-  const resolvedTheme = resolveFileWorkspaceTheme(theme);
+  const resolvedTheme = resolveFileWorkspaceTheme(
+    appearance !== undefined ||
+      chromeTheme !== undefined ||
+      editorTheme !== undefined ||
+      preset !== undefined
+      ? {
+          appearance,
+          chromeTheme,
+          editorTheme,
+          preset,
+        }
+      : theme
+  );
+  const controlledWorkspacePath =
+    workspacePath == null ? null : normalizeFilePath(workspacePath);
   const adapterRef = useRef(adapter);
   const mountedRef = useRef(true);
+  const workspacePickerRef = useRef<HTMLDivElement | null>(null);
+  const workspacePickerRequestRef = useRef(0);
+  const documentRequestRef = useRef(0);
+  const copyResetTimeoutRef = useRef<number | null>(null);
+  const activeDocumentRef = useRef<FilePreview | null>(null);
+  const activeDocumentPathRef = useRef<string | null>(null);
   const [activeDocumentPath, setActiveDocumentPath] = useState<string | null>(null);
   const [directoryChildren, setDirectoryChildren] = useState<Record<string, FileEntry[]>>({});
   const [entryIndex, setEntryIndex] = useState<Record<string, FileEntry>>({
@@ -110,38 +247,76 @@ export function FileWorkspace({
     },
   });
   const [expandedPaths, setExpandedPaths] = useState<string[]>(["/"]);
-  const [loadingDirectories, setLoadingDirectories] = useState<string[]>(["/"]);
-  const [openDocuments, setOpenDocuments] = useState<WorkspaceDocument[]>([]);
-  const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
-  const [pendingActionValue, setPendingActionValue] = useState("");
+  const [loadingDirectories, setLoadingDirectories] = useState<string[]>([]);
+  const [activeDocument, setActiveDocument] = useState<FilePreview | null>(null);
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
-  const [statusMessage, setStatusMessage] = useState("Loading sandbox filesystem…");
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [copyState, setCopyState] = useState<"idle" | "copied">("idle");
+  const [uncontrolledWorkspacePath, setUncontrolledWorkspacePath] = useState(
+    controlledWorkspacePath ?? "/"
+  );
+  const [isWorkspacePickerOpen, setIsWorkspacePickerOpen] = useState(false);
+  const [workspaceDraftPath, setWorkspaceDraftPath] = useState(
+    toDirectoryInputValue(controlledWorkspacePath ?? "/")
+  );
+  const [workspaceBrowserPath, setWorkspaceBrowserPath] = useState(controlledWorkspacePath ?? "/");
+  const [workspacePickerOptions, setWorkspacePickerOptions] = useState<
+    WorkspacePickerOption[]
+  >([]);
+  const [workspacePickerError, setWorkspacePickerError] = useState<string | null>(null);
+  const [workspacePickerLoading, setWorkspacePickerLoading] = useState(false);
+  const resolvedWorkspacePath = controlledWorkspacePath ?? uncontrolledWorkspacePath;
 
   adapterRef.current = adapter;
+  activeDocumentRef.current = activeDocument;
+  activeDocumentPathRef.current = activeDocumentPath;
 
   useEffect(() => {
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
+      if (copyResetTimeoutRef.current !== null) {
+        window.clearTimeout(copyResetTimeoutRef.current);
+      }
     };
   }, []);
 
+  useEffect(() => {
+    if (controlledWorkspacePath !== null) {
+      setUncontrolledWorkspacePath(controlledWorkspacePath);
+    }
+  }, [controlledWorkspacePath]);
+
   function pushError(message: string) {
-    setErrorMessage(message);
-    setStatusMessage(message);
     onError?.(message);
   }
 
-  function mergeEntries(entries: FileEntry[]) {
-    const nextEntries = { ...entryIndex };
-    for (const entry of entries) {
-      nextEntries[entry.path] = entry;
+  async function statPath(path: string): Promise<FileEntry> {
+    const normalizedPath = normalizeFilePath(path);
+    if (normalizedPath === "/") {
+      return {
+        name: "/",
+        path: "/",
+        type: "directory",
+      };
     }
-    setEntryIndex(nextEntries);
+
+    return await adapterRef.current.stat(normalizedPath);
   }
 
-  async function loadDirectory(path: string): Promise<FileEntry[]> {
+  function mergeEntries(entries: FileEntry[]) {
+    setEntryIndex((current) => {
+      const nextEntries = { ...current };
+      for (const entry of entries) {
+        nextEntries[entry.path] = entry;
+      }
+      return nextEntries;
+    });
+  }
+
+  async function loadDirectory(
+    path: string,
+    options?: DirectoryLoadOptions
+  ): Promise<FileEntry[]> {
     const normalizedPath = normalizeFilePath(path);
     setLoadingDirectories((current) =>
       current.includes(normalizedPath) ? current : [...current, normalizedPath]
@@ -159,11 +334,13 @@ export function FileWorkspace({
           language: entry.language ?? inferLanguageFromPath(entry.path),
         }))
       );
+
       setDirectoryChildren((current) => ({
         ...current,
         [normalizedPath]: sortedEntries,
       }));
       mergeEntries(sortedEntries);
+
       if (normalizedPath !== "/") {
         setEntryIndex((current) => ({
           ...current,
@@ -176,9 +353,15 @@ export function FileWorkspace({
             } satisfies FileEntry),
         }));
       }
+
       return sortedEntries;
     } catch (error) {
-      pushError(toErrorMessage(error));
+      if (options?.reportError !== false) {
+        pushError(toErrorMessage(error));
+      }
+      if (options?.throwOnError) {
+        throw error;
+      }
       return [];
     } finally {
       if (mountedRef.current) {
@@ -189,58 +372,155 @@ export function FileWorkspace({
     }
   }
 
-  async function ensureDirectoryLoaded(path: string): Promise<void> {
+  async function ensureDirectoryLoaded(
+    path: string,
+    options?: DirectoryLoadOptions
+  ): Promise<void> {
     const normalizedPath = normalizeFilePath(path);
     if (directoryChildren[normalizedPath]) {
       return;
     }
-    await loadDirectory(normalizedPath);
+    await loadDirectory(normalizedPath, options);
   }
 
-  async function expandDirectoryChain(path: string): Promise<void> {
-    const ancestors = getAncestorPaths(path);
-    for (const ancestor of ancestors) {
-      setExpandedPaths((current) =>
-        current.includes(ancestor) ? current : [...current, ancestor]
-      );
-      if (entryIndex[ancestor]?.type === "directory" || ancestor === "/") {
-        await ensureDirectoryLoaded(ancestor);
+  async function listWorkspacePickerOptions(path: string): Promise<WorkspacePickerOption[]> {
+    const normalizedPath = normalizeFilePath(path);
+    const entries =
+      directoryChildren[normalizedPath] ??
+      (await loadDirectory(normalizedPath, {
+        reportError: false,
+        throwOnError: true,
+      }));
+    const nextOptions: WorkspacePickerOption[] = [];
+
+    if (normalizedPath !== "/") {
+      nextOptions.push({
+        isParent: true,
+        path: getDirName(normalizedPath),
+      });
+    }
+
+    for (const entry of entries) {
+      if (entry.type !== "directory") {
+        continue;
       }
+      nextOptions.push({
+        path: entry.path,
+      });
+    }
+
+    return nextOptions;
+  }
+
+  async function showWorkspacePickerDirectory(path: string): Promise<void> {
+    const requestId = ++workspacePickerRequestRef.current;
+    const normalizedPath = normalizeFilePath(path);
+
+    setWorkspacePickerLoading(true);
+
+    try {
+      const nextOptions = await listWorkspacePickerOptions(normalizedPath);
+
+      if (requestId !== workspacePickerRequestRef.current || !mountedRef.current) {
+        return;
+      }
+
+      setWorkspaceBrowserPath(normalizedPath);
+      setWorkspacePickerOptions(nextOptions);
+    } catch (error) {
+      if (requestId !== workspacePickerRequestRef.current || !mountedRef.current) {
+        return;
+      }
+      setWorkspacePickerError(toErrorMessage(error));
+    }
+
+    if (requestId === workspacePickerRequestRef.current && mountedRef.current) {
+      setWorkspacePickerLoading(false);
     }
   }
 
-  async function openFile(path: string): Promise<void> {
+  async function validateWorkspacePickerPath(inputPath: string): Promise<boolean> {
+    const requestId = ++workspacePickerRequestRef.current;
+    const trimmedPath = inputPath.trim();
+    const normalizedInput = trimmedPath ? normalizeFilePath(trimmedPath) : resolvedWorkspacePath;
+
+    setWorkspacePickerLoading(true);
+
+    let exactDirectory = false;
+    let nextError: string | null = null;
+
+    try {
+      if (!trimmedPath || !trimmedPath.startsWith("/")) {
+        nextError = "Enter an absolute folder path.";
+      } else {
+        const entry = await statPath(normalizedInput);
+        if (entry.type === "directory") {
+          const nextOptions = await listWorkspacePickerOptions(normalizedInput);
+
+          if (requestId !== workspacePickerRequestRef.current || !mountedRef.current) {
+            return exactDirectory;
+          }
+
+          setWorkspaceBrowserPath(normalizedInput);
+          setWorkspacePickerOptions(nextOptions);
+          exactDirectory = true;
+        } else if (entry.type === "file") {
+          nextError = "Please enter a folder path.";
+        }
+      }
+    } catch (error) {
+      nextError = isPathNotFoundError(error)
+        ? "Please enter a path that exists."
+        : toErrorMessage(error);
+    }
+
+    if (requestId !== workspacePickerRequestRef.current || !mountedRef.current) {
+      return exactDirectory;
+    }
+
+    setWorkspacePickerError(nextError);
+    setWorkspacePickerLoading(false);
+    return exactDirectory;
+  }
+
+  async function loadDocument(path: string, options?: { force?: boolean }) {
     const normalizedPath = normalizeFilePath(path);
+    const requestId = ++documentRequestRef.current;
+
     setSelectedPath(normalizedPath);
     setActiveDocumentPath(normalizedPath);
     onOpenFile?.(normalizedPath);
 
-    const existingDocument = openDocuments.find(
-      (document) => document.path === normalizedPath
-    );
-    if (existingDocument) {
+    if (
+      activeDocumentPathRef.current === normalizedPath &&
+      activeDocumentRef.current &&
+      !options?.force
+    ) {
       return;
     }
 
     try {
-      const document = await adapterRef.current.readFile(normalizedPath);
-      if (!mountedRef.current) {
+      const document = await adapterRef.current.previewFile(normalizedPath);
+      if (requestId !== documentRequestRef.current || !mountedRef.current) {
         return;
       }
 
-      const nextDocument: WorkspaceDocument = {
-        ...document,
-        language:
-          document.language ??
-          entryIndex[normalizedPath]?.language ??
-          inferLanguageFromPath(normalizedPath),
-        path: normalizedPath,
-        savedContents: document.contents,
-      };
-      setOpenDocuments((current) => [...current, nextDocument]);
-      setStatusMessage(`Opened ${normalizedPath}`);
-      setErrorMessage(null);
+      if (document.kind === "text") {
+        setActiveDocument({
+          ...document,
+          language:
+            document.language ??
+            entryIndex[normalizedPath]?.language ??
+            inferLanguageFromPath(normalizedPath),
+        });
+        return;
+      }
+
+      setActiveDocument(document);
     } catch (error) {
+      if (requestId !== documentRequestRef.current || !mountedRef.current) {
+        return;
+      }
       pushError(toErrorMessage(error));
     }
   }
@@ -248,22 +528,28 @@ export function FileWorkspace({
   useEffect(() => {
     let active = true;
 
+    workspacePickerRequestRef.current += 1;
+    documentRequestRef.current += 1;
+    setWorkspaceDraftPath(toDirectoryInputValue(resolvedWorkspacePath));
+    setWorkspaceBrowserPath(resolvedWorkspacePath);
+    setWorkspacePickerError(null);
+    setWorkspacePickerLoading(false);
+    setWorkspacePickerOptions([]);
+    setIsWorkspacePickerOpen(false);
+
     async function initializeWorkspace() {
-      await loadDirectory("/");
-      if (!active || !mountedRef.current) {
-        return;
-      }
-
-      const normalizedInitialPath = normalizeFilePath(initialPath);
-      if (normalizedInitialPath === "/") {
-        setSelectedPath("/");
-        setStatusMessage("Ready");
-        return;
-      }
-
       try {
-        const entry = await adapterRef.current.stat(normalizedInitialPath);
+        const entry = await statPath(resolvedWorkspacePath);
         if (!active || !mountedRef.current) {
+          return;
+        }
+
+        if (entry.type !== "directory") {
+          pushError("Workspace path must point to a folder.");
+          setActiveDocument(null);
+          setActiveDocumentPath(null);
+          setSelectedPath(null);
+          setExpandedPaths(["/"]);
           return;
         }
 
@@ -275,23 +561,47 @@ export function FileWorkspace({
           },
         }));
 
-        if (entry.type === "directory") {
-          await expandDirectoryChain(entry.path);
+        const nextExpandedPaths = getExpandedWorkspacePaths(
+          resolvedWorkspacePath,
+          activeDocumentRef.current ? activeDocumentPathRef.current : null
+        );
+        setExpandedPaths(nextExpandedPaths);
+
+        for (const ancestor of nextExpandedPaths) {
+          await ensureDirectoryLoaded(ancestor, {
+            reportError: false,
+            throwOnError: true,
+          });
           if (!active || !mountedRef.current) {
             return;
           }
-          setSelectedPath(entry.path);
-        } else {
-          const parentPath = getDirName(entry.path);
-          await expandDirectoryChain(parentPath);
-          if (!active || !mountedRef.current) {
-            return;
-          }
-          await openFile(entry.path);
         }
-        setStatusMessage("Ready");
+
+        if (
+          activeDocumentRef.current &&
+          activeDocumentPathRef.current &&
+          isPathWithin(resolvedWorkspacePath, activeDocumentPathRef.current)
+        ) {
+          setSelectedPath(activeDocumentPathRef.current);
+          return;
+        }
+
+        setActiveDocument(null);
+        setActiveDocumentPath(null);
+        setSelectedPath(null);
       } catch (error) {
-        pushError(toErrorMessage(error));
+        if (!active || !mountedRef.current) {
+          return;
+        }
+        pushError(
+          isPathNotFoundError(error)
+            ? `Workspace path does not exist: ${resolvedWorkspacePath}`
+            : toErrorMessage(error)
+        );
+        setActiveDocument(null);
+        setActiveDocumentPath(null);
+        setSelectedPath(null);
+        setExpandedPaths(["/"]);
       }
     }
 
@@ -300,32 +610,43 @@ export function FileWorkspace({
     return () => {
       active = false;
     };
-  }, [initialPath]);
+  }, [resolvedWorkspacePath]);
 
   useEffect(() => {
-    function handleWindowSave(event: KeyboardEvent) {
-      if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== "s") {
-        return;
-      }
-
-      event.preventDefault();
-      void saveActiveDocument();
+    if (!isWorkspacePickerOpen) {
+      return;
     }
 
-    window.addEventListener("keydown", handleWindowSave);
-    return () => {
-      window.removeEventListener("keydown", handleWindowSave);
-    };
-  });
+    function handlePointerDown(event: MouseEvent) {
+      const target = event.target;
+      if (!(target instanceof Node)) {
+        return;
+      }
+      if (workspacePickerRef.current?.contains(target)) {
+        return;
+      }
+      setIsWorkspacePickerOpen(false);
+    }
 
-  const activeDocument =
-    openDocuments.find((document) => document.path === activeDocumentPath) ?? null;
-  const selectedEntry = selectedPath ? entryIndex[selectedPath] ?? null : null;
-  const isWorkspaceReadOnly = readOnly === true;
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key !== "Escape") {
+        return;
+      }
+      setIsWorkspacePickerOpen(false);
+    }
+
+    window.addEventListener("mousedown", handlePointerDown);
+    window.addEventListener("keydown", handleEscape);
+
+    return () => {
+      window.removeEventListener("mousedown", handlePointerDown);
+      window.removeEventListener("keydown", handleEscape);
+    };
+  }, [isWorkspacePickerOpen]);
 
   async function handleToggleDirectory(path: string) {
     const normalizedPath = normalizeFilePath(path);
-    if (isRootPath(normalizedPath)) {
+    if (normalizedPath === "/") {
       await ensureDirectoryLoaded("/");
       return;
     }
@@ -342,238 +663,64 @@ export function FileWorkspace({
     );
   }
 
-  function updateDocument(path: string, patch: Partial<WorkspaceDocument>) {
+  async function copyToClipboard(value: string) {
+    if (!navigator?.clipboard?.writeText) {
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(value);
+      if (copyResetTimeoutRef.current !== null) {
+        window.clearTimeout(copyResetTimeoutRef.current);
+      }
+      setCopyState("copied");
+      copyResetTimeoutRef.current = window.setTimeout(() => {
+        setCopyState("idle");
+        copyResetTimeoutRef.current = null;
+      }, 1200);
+    } catch {
+      setCopyState("idle");
+    }
+  }
+
+  useEffect(() => {
+    if (copyResetTimeoutRef.current !== null) {
+      window.clearTimeout(copyResetTimeoutRef.current);
+      copyResetTimeoutRef.current = null;
+    }
+    setCopyState("idle");
+  }, [activeDocumentPath]);
+
+  function setWorkspacePathValue(path: string) {
     const normalizedPath = normalizeFilePath(path);
-    setOpenDocuments((current) =>
-      current.map((document) =>
-        document.path === normalizedPath ? { ...document, ...patch } : document
-      )
-    );
+    if (controlledWorkspacePath === null) {
+      setUncontrolledWorkspacePath(normalizedPath);
+    }
+    onWorkspacePathChange?.(normalizedPath);
   }
 
-  async function saveActiveDocument() {
-    if (!activeDocument) {
-      return;
-    }
-    if (isWorkspaceReadOnly || activeDocument.readOnly) {
-      setStatusMessage("This file is read-only and cannot be saved.");
-      return;
-    }
-    if (activeDocument.contents === activeDocument.savedContents) {
-      setStatusMessage("No changes to save.");
-      return;
-    }
-
-    try {
-      await adapterRef.current.writeFile(activeDocument.path, activeDocument.contents);
-      if (!mountedRef.current) {
-        return;
-      }
-
-      updateDocument(activeDocument.path, {
-        savedContents: activeDocument.contents,
-      });
-      setStatusMessage(`Saved ${activeDocument.path}`);
-      setErrorMessage(null);
-      onSaveFile?.(activeDocument.path);
-      await ensureDirectoryLoaded(getDirName(activeDocument.path));
-    } catch (error) {
-      pushError(toErrorMessage(error));
-    }
+  function openWorkspacePicker() {
+    setWorkspaceDraftPath(toDirectoryInputValue(resolvedWorkspacePath));
+    setWorkspaceBrowserPath(resolvedWorkspacePath);
+    setWorkspacePickerError(null);
+    setIsWorkspacePickerOpen(true);
+    void showWorkspacePickerDirectory(resolvedWorkspacePath);
   }
 
-  function startCreateAction(type: "create-directory" | "create-file") {
-    const baseDirectory =
-      selectedEntry?.type === "directory"
-        ? selectedEntry.path
-        : selectedPath
-          ? getDirName(selectedPath)
-          : "/";
-    setPendingAction({
-      directoryPath: baseDirectory,
-      type,
-    });
-    setPendingActionValue("");
+  function handleWorkspaceOptionClick(option: WorkspacePickerOption) {
+    setWorkspaceDraftPath(toDirectoryInputValue(option.path));
+    setWorkspacePickerError(null);
+    void showWorkspacePickerDirectory(option.path);
   }
 
-  function startRenameAction() {
-    if (!selectedPath || isRootPath(selectedPath)) {
-      return;
-    }
-    setPendingAction({
-      path: selectedPath,
-      type: "rename",
-    });
-    setPendingActionValue(getBaseName(selectedPath));
-  }
-
-  function cancelPendingAction() {
-    setPendingAction(null);
-    setPendingActionValue("");
-  }
-
-  async function submitPendingAction() {
-    if (!pendingAction) {
+  async function commitWorkspacePath() {
+    const isValidDirectory = await validateWorkspacePickerPath(workspaceDraftPath);
+    if (!isValidDirectory) {
       return;
     }
 
-    const currentPendingAction = pendingAction;
-    const nextName = pendingActionValue.trim();
-    if (!nextName) {
-      setStatusMessage("Name is required.");
-      return;
-    }
-
-    try {
-      if (currentPendingAction.type === "create-file") {
-        const nextPath = joinFilePath(currentPendingAction.directoryPath, nextName);
-        await adapterRef.current.createFile(nextPath, "");
-        if (!mountedRef.current) {
-          return;
-        }
-
-        await ensureDirectoryLoaded(currentPendingAction.directoryPath);
-        await loadDirectory(currentPendingAction.directoryPath);
-        setSelectedPath(nextPath);
-        setActiveDocumentPath(nextPath);
-        setOpenDocuments((current) => {
-          if (current.some((document) => document.path === nextPath)) {
-            return current;
-          }
-          return [
-            ...current,
-            {
-              contents: "",
-              language: inferLanguageFromPath(nextPath),
-              path: nextPath,
-              savedContents: "",
-            },
-          ];
-        });
-        setStatusMessage(`Created ${nextPath}`);
-        onCreateFile?.(nextPath);
-      } else if (currentPendingAction.type === "create-directory") {
-        const nextPath = joinFilePath(currentPendingAction.directoryPath, nextName);
-        await adapterRef.current.createDirectory(nextPath);
-        if (!mountedRef.current) {
-          return;
-        }
-
-        await ensureDirectoryLoaded(currentPendingAction.directoryPath);
-        await loadDirectory(currentPendingAction.directoryPath);
-        setExpandedPaths((current) =>
-          current.includes(nextPath) ? current : [...current, nextPath]
-        );
-        setSelectedPath(nextPath);
-        setStatusMessage(`Created ${nextPath}`);
-        onCreateDirectory?.(nextPath);
-      } else if (currentPendingAction.type === "rename") {
-        const currentPath = currentPendingAction.path;
-        const nextPath = joinFilePath(getDirName(currentPath), nextName);
-        await adapterRef.current.rename(currentPath, nextPath);
-        if (!mountedRef.current) {
-          return;
-        }
-
-        await loadDirectory(getDirName(currentPath));
-        if (getDirName(nextPath) !== getDirName(currentPath)) {
-          await loadDirectory(getDirName(nextPath));
-        }
-
-        setEntryIndex((current) => {
-          const nextIndex = { ...current };
-          const movingEntry = nextIndex[currentPath];
-          delete nextIndex[currentPath];
-          if (movingEntry) {
-            nextIndex[nextPath] = {
-              ...movingEntry,
-              name: getBaseName(nextPath),
-              path: nextPath,
-            };
-          }
-          return nextIndex;
-        });
-        setOpenDocuments((current) =>
-          current.map((document) =>
-            document.path === currentPath
-              ? {
-                  ...document,
-                  language: inferLanguageFromPath(nextPath),
-                  path: nextPath,
-                }
-              : document
-          )
-        );
-        setExpandedPaths((current) =>
-          current.map((path) => (path === currentPath ? nextPath : path))
-        );
-        if (selectedPath === currentPath) {
-          setSelectedPath(nextPath);
-        }
-        if (activeDocumentPath === currentPath) {
-          setActiveDocumentPath(nextPath);
-        }
-        setStatusMessage(`Renamed to ${nextPath}`);
-        onRename?.(currentPath, nextPath);
-      }
-
-      setErrorMessage(null);
-      cancelPendingAction();
-    } catch (error) {
-      pushError(toErrorMessage(error));
-    }
-  }
-
-  async function deleteSelectedPath() {
-    if (!selectedPath || isRootPath(selectedPath)) {
-      return;
-    }
-
-    const isDirectory = entryIndex[selectedPath]?.type === "directory";
-    const confirmationMessage = isDirectory
-      ? `Delete ${selectedPath} and all nested files?`
-      : `Delete ${selectedPath}?`;
-    if (!window.confirm(confirmationMessage)) {
-      return;
-    }
-
-    try {
-      await adapterRef.current.delete(selectedPath, {
-        recursive: isDirectory,
-      });
-      if (!mountedRef.current) {
-        return;
-      }
-
-      const parentPath = getDirName(selectedPath);
-      await loadDirectory(parentPath);
-      setSelectedPath(parentPath);
-      setExpandedPaths((current) =>
-        current.filter((path) => !isPathWithin(selectedPath, path))
-      );
-      setOpenDocuments((current) =>
-        current.filter((document) => !isPathWithin(selectedPath, document.path))
-      );
-      setActiveDocumentPath((current) =>
-        current && isPathWithin(selectedPath, current) ? null : current
-      );
-      setStatusMessage(`Deleted ${selectedPath}`);
-      setErrorMessage(null);
-      onDelete?.(selectedPath);
-    } catch (error) {
-      pushError(toErrorMessage(error));
-    }
-  }
-
-  async function refreshExplorer() {
-    const targetPath =
-      selectedEntry?.type === "directory"
-        ? selectedEntry.path
-        : selectedPath
-          ? getDirName(selectedPath)
-          : "/";
-    await loadDirectory(targetPath);
-    setStatusMessage(`Refreshed ${targetPath}`);
+    setWorkspacePathValue(workspaceDraftPath);
+    setIsWorkspacePickerOpen(false);
   }
 
   const rootClassName = ["hb-filesystem", className].filter(Boolean).join(" ");
@@ -587,231 +734,173 @@ export function FileWorkspace({
         ...style,
       }}
     >
-      <div aria-hidden="true" className="hb-filesystem__glow" />
-      <header className="hb-filesystem__header">
-        <div className="hb-filesystem__titleBlock">
-          <p className="hb-filesystem__eyebrow">{resolvedTheme.label}</p>
-          <h2 className="hb-filesystem__title">{title}</h2>
-        </div>
-        <div className="hb-filesystem__headerActions">
-          <button
-            className="hb-filesystem__actionButton"
-            disabled={
-              isWorkspaceReadOnly ||
-              !activeDocument ||
-              activeDocument.readOnly === true ||
-              activeDocument.contents === activeDocument.savedContents
-            }
-            onClick={() => {
-              void saveActiveDocument();
-            }}
-            type="button"
-          >
-            Save
-          </button>
-          <button
-            className="hb-filesystem__actionButton"
-            onClick={() => {
-              void refreshExplorer();
-            }}
-            type="button"
-          >
-            Refresh
-          </button>
-        </div>
-      </header>
-
       <div className="hb-filesystem__body">
-        <aside className="hb-filesystem__sidebar">
-          <div className="hb-filesystem__sidebarHeader">
-            <div>
-              <p className="hb-filesystem__sidebarEyebrow">Explorer</p>
-              <p className="hb-filesystem__sidebarPath">
-                {selectedPath ?? normalizeFilePath(initialPath)}
-              </p>
-            </div>
-            <div className="hb-filesystem__sidebarActions">
-              <button
-                className="hb-filesystem__miniButton"
-                disabled={isWorkspaceReadOnly}
-                onClick={() => startCreateAction("create-file")}
-                type="button"
-              >
-                New file
-              </button>
-              <button
-                className="hb-filesystem__miniButton"
-                disabled={isWorkspaceReadOnly}
-                onClick={() => startCreateAction("create-directory")}
-                type="button"
-              >
-                New folder
-              </button>
-              <button
-                className="hb-filesystem__miniButton"
-                disabled={
-                  isWorkspaceReadOnly || !selectedPath || isRootPath(selectedPath)
+        <div className="hb-filesystem__bodyHeader hb-filesystem__bodyHeader--sidebar">
+          <div className="hb-filesystem__workspaceSwitcher" ref={workspacePickerRef}>
+            <button
+              aria-expanded={isWorkspacePickerOpen ? "true" : "false"}
+              className="hb-filesystem__workspaceTrigger"
+              onClick={() => {
+                if (isWorkspacePickerOpen) {
+                  setIsWorkspacePickerOpen(false);
+                  return;
                 }
-                onClick={startRenameAction}
-                type="button"
-              >
-                Rename
-              </button>
-              <button
-                className="hb-filesystem__miniButton"
-                data-tone="danger"
-                disabled={
-                  isWorkspaceReadOnly || !selectedPath || isRootPath(selectedPath)
-                }
-                onClick={() => {
-                  void deleteSelectedPath();
-                }}
-                type="button"
-              >
-                Delete
-              </button>
-            </div>
-          </div>
-
-          {pendingAction ? (
-            <form
-              className="hb-filesystem__inlineForm"
-              onSubmit={(event) => {
-                event.preventDefault();
-                void submitPendingAction();
+                openWorkspacePicker();
               }}
+              title={resolvedWorkspacePath}
+              type="button"
             >
-              <label className="hb-filesystem__inlineFormLabel">
-                {pendingAction.type === "rename"
-                  ? `Rename ${pendingAction.path}`
-                  : `Create in ${pendingAction.directoryPath}`}
+              <span className="hb-filesystem__workspaceTriggerIcon">
+                <WorkspaceIcon />
+              </span>
+              <span className="hb-filesystem__workspaceTriggerText">
+                {toWorkspaceLabel(resolvedWorkspacePath)}
+              </span>
+              <ChevronDownIcon open={isWorkspacePickerOpen} />
+            </button>
+
+            {isWorkspacePickerOpen ? (
+              <div
+                aria-label="Open folder"
+                className="hb-filesystem__workspaceMenu"
+                role="dialog"
+              >
+                <div className="hb-filesystem__workspaceMenuHeader">
+                  <span className="hb-filesystem__workspaceMenuTitle">Open Folder</span>
+                  <button
+                    className="hb-filesystem__workspaceMenuConfirm"
+                    onClick={() => {
+                      void commitWorkspacePath();
+                    }}
+                    type="button"
+                  >
+                    OK
+                  </button>
+                </div>
+
                 <input
-                  autoFocus
-                  className="hb-filesystem__input"
-                  onChange={(event) => setPendingActionValue(event.target.value)}
-                  placeholder={
-                    pendingAction.type === "create-directory"
-                      ? "folder-name"
-                      : pendingAction.type === "create-file"
-                        ? "file-name.ts"
-                        : "new-name"
-                  }
-                  value={pendingActionValue}
+                  autoCapitalize="none"
+                  autoComplete="off"
+                  className="hb-filesystem__workspaceInput"
+                  onChange={(event) => {
+                    const nextValue = event.target.value;
+                    setWorkspaceDraftPath(nextValue);
+
+                    if (nextValue === "/" || nextValue.endsWith("/")) {
+                      void validateWorkspacePickerPath(nextValue);
+                    }
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      void commitWorkspacePath();
+                    }
+                  }}
+                  spellCheck={false}
+                  type="text"
+                  value={workspaceDraftPath}
                 />
-              </label>
-              <div className="hb-filesystem__inlineFormActions">
-                <button className="hb-filesystem__actionButton" type="submit">
-                  Apply
-                </button>
+
+                {workspacePickerError ? (
+                  <p className="hb-filesystem__workspaceError">{workspacePickerError}</p>
+                ) : null}
+
+                <div className="hb-filesystem__workspaceOptions" role="listbox">
+                  {workspacePickerLoading ? (
+                    <p className="hb-filesystem__workspacePlaceholder">Loading folders…</p>
+                  ) : workspacePickerOptions.length > 0 ? (
+                    workspacePickerOptions.map((option) => (
+                      <button
+                        className="hb-filesystem__workspaceOption"
+                        key={`${option.isParent ? "parent" : "dir"}:${option.path}`}
+                        onClick={() => {
+                          handleWorkspaceOptionClick(option);
+                        }}
+                        title={option.path}
+                        type="button"
+                      >
+                        <span className="hb-filesystem__workspaceOptionIcon">
+                          {option.isParent ? <ParentDirectoryIcon /> : <WorkspaceIcon />}
+                        </span>
+                        <span className="hb-filesystem__workspaceOptionText">
+                          {option.isParent ? ".." : getBaseName(option.path)}
+                        </span>
+                      </button>
+                    ))
+                  ) : (
+                    <p className="hb-filesystem__workspacePlaceholder">
+                      No folders in {workspaceBrowserPath}
+                    </p>
+                  )}
+                </div>
+              </div>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="hb-filesystem__bodyHeader hb-filesystem__bodyHeader--workspace">
+          {activeDocument ? (
+            <>
+              <code className="hb-filesystem__previewPathBar">{activeDocument.path}</code>
+              {activeDocument.kind === "text" ? (
                 <button
-                  className="hb-filesystem__actionButton"
-                  onClick={cancelPendingAction}
+                  aria-label="Copy file contents"
+                  className="hb-filesystem__copyButton"
+                  data-state={copyState}
+                  onClick={() => {
+                    void copyToClipboard(activeDocument.contents);
+                  }}
+                  title={copyState === "copied" ? "Copied" : "Copy contents"}
                   type="button"
                 >
-                  Cancel
+                  <span className="hb-filesystem__copyIconStack">
+                    <span
+                      aria-hidden={copyState === "copied" ? "true" : undefined}
+                      className="hb-filesystem__copyIcon hb-filesystem__copyIcon--copy"
+                    >
+                      <CopyIcon />
+                    </span>
+                    <span
+                      aria-hidden={copyState !== "copied" ? "true" : undefined}
+                      className="hb-filesystem__copyIcon hb-filesystem__copyIcon--check"
+                    >
+                      <CheckIcon />
+                    </span>
+                  </span>
                 </button>
-              </div>
-            </form>
-          ) : null}
+              ) : null}
+            </>
+          ) : (
+            <div
+              aria-hidden="true"
+              className="hb-filesystem__previewPathBar"
+              data-empty="true"
+            />
+          )}
+        </div>
 
+        <aside className="hb-filesystem__sidebar">
           <FileTree
             activeFilePath={activeDocumentPath}
             directoryChildren={directoryChildren}
             expandedPaths={expandedPaths}
             loadingPaths={loadingDirectories}
             onOpenFile={(path) => {
-              void openFile(path);
+              void loadDocument(path);
             }}
             onSelectPath={setSelectedPath}
             onToggleDirectory={(path) => {
               void handleToggleDirectory(path);
             }}
+            rootPath={resolvedWorkspacePath}
             selectedPath={selectedPath}
           />
         </aside>
 
         <div className="hb-filesystem__workspace">
-          <div className="hb-filesystem__tabs">
-            {openDocuments.length === 0 ? (
-              <div className="hb-filesystem__tab" data-active="true">
-                No file open
-              </div>
-            ) : (
-              openDocuments.map((document) => {
-                const isActive = document.path === activeDocumentPath;
-                const isDirty = document.contents !== document.savedContents;
-                return (
-                  <div
-                    className="hb-filesystem__tab"
-                    data-active={isActive ? "true" : undefined}
-                    key={document.path}
-                  >
-                    <button
-                      className="hb-filesystem__tabButton"
-                      onClick={() => {
-                        setActiveDocumentPath(document.path);
-                        setSelectedPath(document.path);
-                      }}
-                      type="button"
-                    >
-                      <span>{getBaseName(document.path)}</span>
-                      {isDirty ? (
-                        <span className="hb-filesystem__dirtyDot">DIRTY</span>
-                      ) : null}
-                    </button>
-                    <button
-                      aria-label={`Close ${document.path}`}
-                      className="hb-filesystem__tabClose"
-                      onClick={() => {
-                        const nextDocuments = openDocuments.filter(
-                          (item) => item.path !== document.path
-                        );
-                        setOpenDocuments(nextDocuments);
-                        setActiveDocumentPath((current) => {
-                          if (current !== document.path) {
-                            return current;
-                          }
-                          const remainingDocument =
-                            nextDocuments[nextDocuments.length - 1] ?? null;
-                          return remainingDocument?.path ?? null;
-                        });
-                      }}
-                      type="button"
-                    >
-                      x
-                    </button>
-                  </div>
-                );
-              })
-            )}
-          </div>
-
-          <CodeEditorPane
-            document={activeDocument}
-            onChange={(nextContents) => {
-              if (!activeDocumentPath) {
-                return;
-              }
-              updateDocument(activeDocumentPath, {
-                contents: nextContents,
-              });
-            }}
-            onSave={() => {
-              void saveActiveDocument();
-            }}
-            theme={resolvedTheme}
-          />
+          <CodeEditorPane document={activeDocument} theme={resolvedTheme} />
         </div>
       </div>
-
-      <footer className="hb-filesystem__footer">
-        <span className="hb-filesystem__footerLabel">
-          {toStatusLabel(activeDocument)}
-        </span>
-        <span className="hb-filesystem__footerMeta">
-          {errorMessage ?? statusMessage}
-        </span>
-      </footer>
     </section>
   );
 }

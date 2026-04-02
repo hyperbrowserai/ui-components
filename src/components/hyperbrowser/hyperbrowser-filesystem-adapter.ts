@@ -1,40 +1,19 @@
-import { inferLanguageFromPath, isTextLikeContentType } from "../filesystem/fileLanguage";
+import { inferLanguageFromPath } from "../filesystem/fileLanguage";
 import { normalizeFilePath } from "../filesystem/filePath";
 import type {
   FileDirectoryListing,
-  FileDocument,
   FileEntry,
+  FilePreview,
   FileWorkspaceAdapter,
 } from "../filesystem/types";
-
-type HyperbrowserRuntimeTarget = {
-  baseUrl: string;
-  host?: string;
-  transport?: string;
-};
-
-export type HyperbrowserRuntimeBrowserAuth = {
-  allowedOrigin?: string;
-  bootstrapUrl: string;
-  bootstrapUrlExpiresAt?: string | null;
-  capabilities?: string[];
-  runtime: HyperbrowserRuntimeTarget;
-};
-
-export type HyperbrowserFilesystemBrowserAuthResolver = (params: {
-  signal: AbortSignal;
-}) => Promise<HyperbrowserRuntimeBrowserAuth>;
+import type {
+  HyperbrowserRuntimeAccess,
+  HyperbrowserRuntimeAccessResolver,
+} from "./hyperbrowser-runtime";
 
 export type HyperbrowserFilesystemAdapterOptions = {
-  apiBaseUrl?: string;
-  apiCredentials?: RequestCredentials;
-  apiHeaders?: HeadersInit | (() => HeadersInit | Promise<HeadersInit>);
-  bootstrapUrl?: string;
-  browserAuthPath?: string;
   fetch?: typeof fetch;
-  getRuntimeBrowserAuth?: HyperbrowserFilesystemBrowserAuthResolver;
-  runtimeBaseUrl?: string;
-  sandboxId?: string;
+  getRuntimeAccess: HyperbrowserRuntimeAccessResolver;
 };
 
 type HyperbrowserFileInfoWire = {
@@ -59,12 +38,21 @@ type HyperbrowserStatWireResponse = {
   file: HyperbrowserFileInfoWire;
 };
 
-type HyperbrowserReadWireResponse = {
-  bytesRead: number;
-  content: string;
+type HyperbrowserPreviewWirePayload = {
+  content?: string;
   contentType?: string;
   encoding?: string;
-  truncated?: boolean;
+  expiresAt?: number;
+  kind: string;
+  name?: string;
+  path: string;
+  reason?: string;
+  size?: number;
+  url?: string;
+};
+
+type HyperbrowserPreviewWireResponse = {
+  preview: HyperbrowserPreviewWirePayload;
 };
 
 class HyperbrowserRequestError extends Error {
@@ -78,12 +66,12 @@ class HyperbrowserRequestError extends Error {
 }
 
 function resolveFetchImplementation(
-  fetchImpl: typeof fetch | undefined
+  fetchImpl: typeof fetch | undefined,
 ): typeof fetch {
   const resolved = fetchImpl ?? globalThis.fetch;
   if (typeof resolved !== "function") {
     throw new Error(
-      "Hyperbrowser filesystem transport requires a global fetch implementation."
+      "Hyperbrowser filesystem transport requires a global fetch implementation.",
     );
   }
   return resolved;
@@ -97,7 +85,9 @@ function resolveUrl(baseUrl: string, path: string): URL {
   return new URL(path.replace(/^\/+/, ""), normalizedBaseUrl);
 }
 
-function toQueryString(query: Record<string, string | number | undefined>): string {
+function toQueryString(
+  query: Record<string, string | number | undefined>,
+): string {
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(query)) {
     if (value === undefined) {
@@ -131,9 +121,88 @@ function toEntry(entry: HyperbrowserFileInfoWire): FileEntry {
   };
 }
 
+function parsePreviewKind(kind: string): FilePreview["kind"] {
+  switch (kind) {
+    case "text":
+    case "image":
+    case "audio":
+    case "video":
+    case "pdf":
+    case "binary":
+      return kind;
+    default:
+      throw new HyperbrowserRequestError(`Unsupported preview kind: ${kind}`);
+  }
+}
+
+function toPreview(
+  preview: HyperbrowserPreviewWirePayload,
+  fallbackPath: string,
+): FilePreview {
+  const normalizedPath = normalizeFilePath(preview.path || fallbackPath);
+  const kind = parsePreviewKind(preview.kind);
+
+  if (kind === "text") {
+    if (typeof preview.content !== "string") {
+      throw new HyperbrowserRequestError(
+        `Text preview for ${normalizedPath} did not include content.`,
+      );
+    }
+
+    return {
+      contentType: preview.contentType,
+      contents: preview.content,
+      encoding: preview.encoding,
+      kind,
+      language: inferLanguageFromPath(normalizedPath),
+      path: normalizedPath,
+      size: preview.size,
+    };
+  }
+
+  if (
+    kind === "image" ||
+    kind === "audio" ||
+    kind === "video" ||
+    kind === "pdf"
+  ) {
+    if (typeof preview.url !== "string" || preview.url.length === 0) {
+      throw new HyperbrowserRequestError(
+        `${kind} preview for ${normalizedPath} did not include a URL.`,
+      );
+    }
+    try {
+      new URL(preview.url);
+    } catch {
+      throw new HyperbrowserRequestError(
+        `${kind} preview for ${normalizedPath} did not include an absolute URL.`,
+      );
+    }
+
+    return {
+      contentType: preview.contentType,
+      expiresAt: preview.expiresAt,
+      kind,
+      name: preview.name,
+      path: normalizedPath,
+      size: preview.size,
+      url: preview.url,
+    };
+  }
+
+  return {
+    contentType: preview.contentType,
+    kind: "binary",
+    name: preview.name,
+    path: normalizedPath,
+    reason: preview.reason,
+    size: preview.size,
+  };
+}
+
 async function readJsonResponse<T>(
   response: Response,
-  fallbackMessage: string
+  fallbackMessage: string,
 ): Promise<T> {
   const text = await response.text();
   let payload: Record<string, unknown> = {};
@@ -146,7 +215,7 @@ async function readJsonResponse<T>(
       }
       throw new HyperbrowserRequestError(
         `Invalid JSON response from server. ${fallbackMessage}`,
-        response.status
+        response.status,
       );
     }
   }
@@ -161,102 +230,39 @@ async function readJsonResponse<T>(
   return payload as T;
 }
 
-function resolveHeaders(
-  input: HyperbrowserFilesystemAdapterOptions["apiHeaders"]
-): Promise<Headers> {
-  return Promise.resolve(typeof input === "function" ? input() : input).then(
-    (value) => new Headers(value)
-  );
-}
-
-async function fetchRuntimeBrowserAuth(
-  options: HyperbrowserFilesystemAdapterOptions,
-  signal: AbortSignal
-): Promise<HyperbrowserRuntimeBrowserAuth> {
-  if (options.getRuntimeBrowserAuth) {
-    return options.getRuntimeBrowserAuth({ signal });
-  }
-
-  if (options.runtimeBaseUrl && options.bootstrapUrl) {
-    return {
-      bootstrapUrl: options.bootstrapUrl,
-      runtime: {
-        baseUrl: options.runtimeBaseUrl,
-      },
-    };
-  }
-
-  if (!options.apiBaseUrl || !options.sandboxId) {
-    throw new Error(
-      "Hyperbrowser filesystem transport requires either getRuntimeBrowserAuth, runtimeBaseUrl + bootstrapUrl, or apiBaseUrl + sandboxId."
-    );
-  }
-
-  const fetchImpl = resolveFetchImplementation(options.fetch);
-  const headers = await resolveHeaders(options.apiHeaders);
-  const endpoint = resolveUrl(
-    options.apiBaseUrl,
-    options.browserAuthPath ??
-      `sandbox/${encodeURIComponent(options.sandboxId)}/runtime/browser-auth`
-  );
-  const response = await fetchImpl(endpoint.toString(), {
-    credentials: options.apiCredentials ?? "include",
-    headers,
-    method: "POST",
-    signal,
-  });
-
-  return readJsonResponse<HyperbrowserRuntimeBrowserAuth>(
-    response,
-    "Failed to issue runtime browser auth."
-  );
-}
-
 export function createHyperbrowserFilesystemAdapter(
-  options: HyperbrowserFilesystemAdapterOptions
+  options: HyperbrowserFilesystemAdapterOptions,
 ): FileWorkspaceAdapter {
   const fetchImpl = resolveFetchImplementation(options.fetch);
-  let runtimeBaseUrlPromise: Promise<string> | null = null;
+  let runtimeAccessPromise: Promise<HyperbrowserRuntimeAccess> | null = null;
 
-  async function ensureRuntimeBaseUrl(): Promise<string> {
-    if (!runtimeBaseUrlPromise) {
-      runtimeBaseUrlPromise = (async () => {
-        const controller = new AbortController();
-        const runtimeAuth = await fetchRuntimeBrowserAuth(options, controller.signal);
-        if (!runtimeAuth.runtime?.baseUrl) {
-          throw new Error(
-            "Runtime browser auth response did not include a runtime base URL."
-          );
-        }
-
-        const bootstrapResponse = await fetchImpl(runtimeAuth.bootstrapUrl, {
-          credentials: "include",
-          method: "GET",
+  async function ensureRuntimeAccess(
+    forceRefresh = false,
+  ): Promise<HyperbrowserRuntimeAccess> {
+    if (!runtimeAccessPromise || forceRefresh) {
+      const controller = new AbortController();
+      runtimeAccessPromise = options
+        .getRuntimeAccess({
+          forceRefresh,
           signal: controller.signal,
+        })
+        .catch((error) => {
+          runtimeAccessPromise = null;
+          throw error;
         });
-        if (!bootstrapResponse.ok) {
-          throw new HyperbrowserRequestError(
-            "Failed to bootstrap runtime browser auth.",
-            bootstrapResponse.status
-          );
-        }
-        return runtimeAuth.runtime.baseUrl;
-      })().catch((error) => {
-        runtimeBaseUrlPromise = null;
-        throw error;
-      });
     }
 
-    return runtimeBaseUrlPromise;
+    return runtimeAccessPromise;
   }
 
   async function requestJson<T>(
     path: string,
     init: RequestInit,
-    query?: Record<string, string | number | undefined>
+    query?: Record<string, string | number | undefined>,
+    allowRetry = true,
   ): Promise<T> {
-    const runtimeBaseUrl = await ensureRuntimeBaseUrl();
-    const url = resolveUrl(runtimeBaseUrl, path);
+    const runtimeAccess = await ensureRuntimeAccess();
+    const url = resolveUrl(runtimeAccess.runtimeBaseUrl, path);
     if (query) {
       url.search = toQueryString(query);
     }
@@ -265,10 +271,14 @@ export function createHyperbrowserFilesystemAdapter(
       credentials: "include",
       ...init,
     });
+    if (!response.ok && response.status === 401 && allowRetry) {
+      await ensureRuntimeAccess(true);
+      return requestJson<T>(path, init, query, false);
+    }
     return readJsonResponse<T>(response, `Request failed for ${path}.`);
   }
 
-  return {
+  const adapter: FileWorkspaceAdapter = {
     async createDirectory(path: string): Promise<void> {
       await requestJson("/sandbox/files/mkdir", {
         body: JSON.stringify({
@@ -317,7 +327,7 @@ export function createHyperbrowserFilesystemAdapter(
         {
           depth: 1,
           path: normalizeFilePath(path),
-        }
+        },
       );
       return {
         entries: response.entries.map(toEntry),
@@ -325,48 +335,22 @@ export function createHyperbrowserFilesystemAdapter(
       };
     },
 
-    async readFile(path: string): Promise<FileDocument> {
+    async previewFile(path: string): Promise<FilePreview> {
       const normalizedPath = normalizeFilePath(path);
-      const response = await requestJson<HyperbrowserReadWireResponse>(
-        "/sandbox/files/read",
+      const response = await requestJson<HyperbrowserPreviewWireResponse>(
+        "/sandbox/files/preview",
         {
           body: JSON.stringify({
-            encoding: "utf8",
             path: normalizedPath,
           }),
           headers: {
             "Content-Type": "application/json",
           },
           method: "POST",
-        }
+        },
       );
 
-      const isTextDocument = isTextLikeContentType(response.contentType);
-      if (!isTextDocument) {
-        return {
-          contentType: response.contentType,
-          contents: "",
-          encoding: response.encoding,
-          language: inferLanguageFromPath(normalizedPath),
-          path: normalizedPath,
-          readOnly: true,
-          readOnlyReason: "Binary file preview is not available in v1.",
-          truncated: Boolean(response.truncated),
-        };
-      }
-
-      return {
-        contentType: response.contentType,
-        contents: response.content,
-        encoding: response.encoding,
-        language: inferLanguageFromPath(normalizedPath),
-        path: normalizedPath,
-        readOnly: Boolean(response.truncated),
-        readOnlyReason: response.truncated
-          ? "This file exceeded the runtime read limit and is read-only in v1."
-          : undefined,
-        truncated: Boolean(response.truncated),
-      };
+      return toPreview(response.preview, normalizedPath);
     },
 
     async rename(path: string, nextPath: string): Promise<void> {
@@ -390,7 +374,7 @@ export function createHyperbrowserFilesystemAdapter(
         },
         {
           path: normalizeFilePath(path),
-        }
+        },
       );
       return toEntry(response.file);
     },
@@ -409,4 +393,6 @@ export function createHyperbrowserFilesystemAdapter(
       });
     },
   };
+
+  return adapter;
 }

@@ -1,89 +1,52 @@
-import { useRef } from "react";
+import { useMemo } from "react";
 import { FileWorkspace } from "../filesystem/FileWorkspace";
 import type { FileWorkspaceProps } from "../filesystem/types";
 import {
   createHyperbrowserFilesystemAdapter,
   type HyperbrowserFilesystemAdapterOptions,
-  type HyperbrowserFilesystemBrowserAuthResolver,
-  type HyperbrowserRuntimeBrowserAuth,
 } from "./hyperbrowser-filesystem-adapter";
+import { useHyperbrowserRuntime } from "./HyperbrowserRuntimeProvider";
 
-export type HyperbrowserFileWorkspaceProps = Omit<FileWorkspaceProps, "adapter"> &
-  HyperbrowserFilesystemAdapterOptions;
-
-type StableAdapterFactory = {
-  adapter: ReturnType<typeof createHyperbrowserFilesystemAdapter>;
-};
-
-function serializeValue(value: unknown): string {
-  if (!value) {
-    return "";
-  }
-  if (Array.isArray(value)) {
-    return JSON.stringify(value);
-  }
-  if (value instanceof Headers) {
-    return JSON.stringify(Array.from(value.entries()));
-  }
-  if (typeof value === "object") {
-    return JSON.stringify(value, Object.keys(value as Record<string, unknown>).sort());
-  }
-  return String(value);
-}
-
-function createAdapterKey(props: HyperbrowserFileWorkspaceProps): string {
-  return [
-    props.apiBaseUrl ?? "",
-    props.bootstrapUrl ?? "",
-    props.browserAuthPath ?? "",
-    serializeValue(props.apiHeaders),
-    props.runtimeBaseUrl ?? "",
-    props.sandboxId ?? "",
-  ].join("|");
-}
+export type HyperbrowserFileWorkspaceProps = Omit<
+  FileWorkspaceProps,
+  "adapter"
+> &
+  Pick<HyperbrowserFilesystemAdapterOptions, "fetch">;
 
 function createAdapterOptions(
-  props: HyperbrowserFileWorkspaceProps
+  props: HyperbrowserFileWorkspaceProps,
+  getRuntimeAccess: HyperbrowserFilesystemAdapterOptions["getRuntimeAccess"],
 ): HyperbrowserFilesystemAdapterOptions {
   return {
-    apiBaseUrl: props.apiBaseUrl,
-    apiCredentials: props.apiCredentials,
-    apiHeaders: props.apiHeaders,
-    bootstrapUrl: props.bootstrapUrl,
-    browserAuthPath: props.browserAuthPath,
     fetch: props.fetch,
-    getRuntimeBrowserAuth: props.getRuntimeBrowserAuth,
-    runtimeBaseUrl: props.runtimeBaseUrl,
-    sandboxId: props.sandboxId,
+    getRuntimeAccess,
   };
 }
 
 export {
   createHyperbrowserFilesystemAdapter,
   type HyperbrowserFilesystemAdapterOptions,
-  type HyperbrowserFilesystemBrowserAuthResolver,
-  type HyperbrowserRuntimeBrowserAuth,
 };
 
 export function HyperbrowserFileWorkspace(
-  props: HyperbrowserFileWorkspaceProps
+  props: HyperbrowserFileWorkspaceProps,
 ) {
-  const adapterFactoryRef = useRef<StableAdapterFactory | null>(null);
-  const adapterKeyRef = useRef<string>("");
-  const adapterKey = createAdapterKey(props);
-
-  if (!adapterFactoryRef.current || adapterKeyRef.current !== adapterKey) {
-    adapterFactoryRef.current = {
-      adapter: createHyperbrowserFilesystemAdapter(createAdapterOptions(props)),
-    };
-    adapterKeyRef.current = adapterKey;
-  }
+  const { ensureRuntimeAccess } = useHyperbrowserRuntime();
+  const adapter = useMemo(
+    () =>
+      createHyperbrowserFilesystemAdapter(
+        createAdapterOptions(props, ensureRuntimeAccess),
+      ),
+    [props.fetch, ensureRuntimeAccess],
+  );
 
   return (
     <FileWorkspace
-      adapter={adapterFactoryRef.current.adapter}
+      adapter={adapter}
+      appearance={props.appearance}
       className={props.className}
-      initialPath={props.initialPath ?? "/"}
+      chromeTheme={props.chromeTheme}
+      editorTheme={props.editorTheme}
       onCreateDirectory={props.onCreateDirectory}
       onCreateFile={props.onCreateFile}
       onDelete={props.onDelete}
@@ -91,10 +54,13 @@ export function HyperbrowserFileWorkspace(
       onOpenFile={props.onOpenFile}
       onRename={props.onRename}
       onSaveFile={props.onSaveFile}
+      onWorkspacePathChange={props.onWorkspacePathChange}
+      preset={props.preset}
       readOnly={props.readOnly}
       style={props.style}
       theme={props.theme}
       title={props.title ?? "Hyperbrowser Filesystem"}
+      workspacePath={props.workspacePath}
     />
   );
 }

@@ -19,7 +19,7 @@ TypeScript-first React component package scaffold with:
 
 - `npm run typecheck`: Validate TypeScript.
 - `npm run build`: Build ESM, CJS, and declaration outputs.
-- `npm run test:visual`: Build package and start visual harness server.
+- `npm run test:visual`: Start the visual harness server.
 
 ## Sandbox terminal usage
 
@@ -242,6 +242,96 @@ Terminal primitives support:
 `cursorBlink`, and `cursorStyle`
 
 You can also create a reusable spreadable config with `createTerminalTheme(...)`.
+
+## Filesystem workspace usage
+
+The public filesystem path is built from two layers:
+
+- `HyperbrowserFileWorkspace`: ready-to-use Hyperbrowser-backed filesystem browser
+- `FileWorkspace`: lower-level browser shell when you want to bring your own adapter
+
+Import the packaged stylesheet once in your app entrypoint:
+
+```tsx
+import "@hyperbrowser/ui/styles.css";
+```
+
+### Basic `HyperbrowserFileWorkspace` example
+
+```tsx
+import { useCallback } from "react";
+import {
+  createFileWorkspaceTheme,
+  HyperbrowserFileWorkspace,
+  type HyperbrowserFilesystemBrowserAuthParams,
+} from "@hyperbrowser/ui";
+import "@hyperbrowser/ui/styles.css";
+
+export function SandboxFiles({
+  sandboxId,
+}: {
+  sandboxId: string;
+}) {
+  const getRuntimeBrowserAuth = useCallback(
+    async ({
+      browserAuthEndpoint,
+      sandboxId: resolvedSandboxId,
+      signal,
+    }: HyperbrowserFilesystemBrowserAuthParams) => {
+      if (!browserAuthEndpoint) {
+        throw new Error("Sandbox filesystem auth endpoint is unavailable.");
+      }
+
+      const response = await fetch(browserAuthEndpoint, {
+        method: "POST",
+        signal,
+      });
+
+      if (!response.ok) {
+        throw new Error(
+          `Failed to get filesystem auth for sandbox ${resolvedSandboxId ?? sandboxId}.`,
+        );
+      }
+
+      return response.json();
+    },
+    [sandboxId],
+  );
+
+  const filesystemTheme = createFileWorkspaceTheme("basic", {
+    appearance: "dark",
+  });
+
+  return (
+    <HyperbrowserFileWorkspace
+      {...filesystemTheme}
+      getRuntimeBrowserAuth={getRuntimeBrowserAuth}
+      sandboxId={sandboxId}
+      style={{ minHeight: 720 }}
+      title="Sandbox Files"
+      workspacePath="/workspace"
+    />
+  );
+}
+```
+
+Notes:
+
+- `getRuntimeBrowserAuth(...)` receives `{ signal, sandboxId, browserAuthEndpoint }`.
+- `sandboxId` is the standard customer path.
+- `runtimeBaseUrl + bootstrapUrl` is also supported for already-bootstrapped runtime sessions.
+- `apiBaseUrl` is only needed when you want the library to call the control-plane endpoint directly or when you need a non-default control-plane base.
+
+### Filesystem theming
+
+Filesystem theming supports:
+
+- `preset`: one of `basic`, `atlas`, `ledger`
+- `appearance`: `"dark"` or `"light"`
+- `chromeTheme`: partial chrome overrides
+- `editorTheme`: partial editor typography overrides
+
+You can create a reusable spreadable config with `createFileWorkspaceTheme(...)`.
 
 ## VNC component usage
 

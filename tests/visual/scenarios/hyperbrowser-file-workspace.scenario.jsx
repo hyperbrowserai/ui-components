@@ -1,7 +1,7 @@
 import React from "react";
 
 const DEFAULT_API_BASE_URL = "http://localhost:8080/api";
-const DEFAULT_INITIAL_PATH = "/";
+const DEFAULT_WORKSPACE_PATH = "/";
 
 const inputStyle = {
   border: "1px solid #cbd5e1",
@@ -52,25 +52,24 @@ function ControlLabel({ children }) {
 
 function HyperbrowserFileWorkspaceDemo({
   HyperbrowserFileWorkspace,
-  configureMonacoLoader,
   fileWorkspaceThemePresets,
 }) {
   const [mode, setMode] = React.useState("api");
-  const [theme, setTheme] = React.useState("atlas");
+  const [preset, setPreset] = React.useState("atlas");
+  const [appearance, setAppearance] = React.useState("light");
   const [sandboxId, setSandboxId] = React.useState("");
   const [apiBaseUrl, setApiBaseUrl] = React.useState(DEFAULT_API_BASE_URL);
   const [apiToken, setApiToken] = React.useState("");
   const [runtimeBaseUrl, setRuntimeBaseUrl] = React.useState("");
   const [bootstrapUrl, setBootstrapUrl] = React.useState("");
-  const [initialPath, setInitialPath] = React.useState(DEFAULT_INITIAL_PATH);
+  const [workspacePath, setWorkspacePath] = React.useState(DEFAULT_WORKSPACE_PATH);
   const [appliedConfig, setAppliedConfig] = React.useState(null);
   const [launchCount, setLaunchCount] = React.useState(0);
   const [latestEvent, setLatestEvent] = React.useState("Idle.");
 
   React.useEffect(() => {
     setApiBaseUrl(DEFAULT_API_BASE_URL);
-    configureMonacoLoader?.({ vsPath: "/dist/monaco/vs" });
-  }, [configureMonacoLoader]);
+  }, []);
 
   const activeConfig = React.useMemo(() => {
     if (!appliedConfig) {
@@ -85,19 +84,19 @@ function HyperbrowserFileWorkspaceDemo({
               Authorization: `Bearer ${appliedConfig.apiToken}`,
             }
           : undefined,
-        initialPath: appliedConfig.initialPath || DEFAULT_INITIAL_PATH,
         sandboxId: appliedConfig.sandboxId,
+        workspacePath: appliedConfig.workspacePath || DEFAULT_WORKSPACE_PATH,
       };
     }
 
     return {
       bootstrapUrl: appliedConfig.bootstrapUrl,
-      initialPath: appliedConfig.initialPath || DEFAULT_INITIAL_PATH,
       runtimeBaseUrl: appliedConfig.runtimeBaseUrl,
+      workspacePath: appliedConfig.workspacePath || DEFAULT_WORKSPACE_PATH,
     };
   }, [appliedConfig]);
 
-  const themeNames = Object.keys(fileWorkspaceThemePresets ?? {});
+  const presetNames = Object.keys(fileWorkspaceThemePresets ?? {});
   const canLaunch =
     mode === "api"
       ? Boolean(sandboxId.trim() && apiBaseUrl.trim())
@@ -110,27 +109,29 @@ function HyperbrowserFileWorkspaceDemo({
 
     setLatestEvent("Connecting...");
     setAppliedConfig({
+      appearance,
       apiBaseUrl: apiBaseUrl.trim(),
       apiToken: apiToken.trim(),
       bootstrapUrl: bootstrapUrl.trim(),
-      initialPath: initialPath.trim() || DEFAULT_INITIAL_PATH,
       mode,
+      preset,
       runtimeBaseUrl: runtimeBaseUrl.trim(),
       sandboxId: sandboxId.trim(),
-      theme,
+      workspacePath: workspacePath.trim() || DEFAULT_WORKSPACE_PATH,
     });
     setLaunchCount((value) => value + 1);
   };
 
   const resetForm = () => {
     setMode("api");
-    setTheme("atlas");
+    setPreset("atlas");
+    setAppearance("light");
     setSandboxId("");
     setApiBaseUrl(DEFAULT_API_BASE_URL);
     setApiToken("");
     setRuntimeBaseUrl("");
     setBootstrapUrl("");
-    setInitialPath(DEFAULT_INITIAL_PATH);
+    setWorkspacePath(DEFAULT_WORKSPACE_PATH);
     setAppliedConfig(null);
     setLaunchCount(0);
     setLatestEvent("Idle.");
@@ -158,25 +159,36 @@ function HyperbrowserFileWorkspaceDemo({
             </select>
           </ControlLabel>
           <ControlLabel>
-            Theme
+            Preset
             <select
-              value={theme}
-              onChange={(event) => setTheme(event.target.value)}
+              value={preset}
+              onChange={(event) => setPreset(event.target.value)}
               style={inputStyle}
             >
-              {themeNames.map((themeName) => (
-                <option key={themeName} value={themeName}>
-                  {fileWorkspaceThemePresets[themeName].label}
+              {presetNames.map((presetName) => (
+                <option key={presetName} value={presetName}>
+                  {fileWorkspaceThemePresets[presetName].label}
                 </option>
               ))}
             </select>
           </ControlLabel>
           <ControlLabel>
-            Initial path
+            Appearance
+            <select
+              value={appearance}
+              onChange={(event) => setAppearance(event.target.value)}
+              style={inputStyle}
+            >
+              <option value="light">Light</option>
+              <option value="dark">Dark</option>
+            </select>
+          </ControlLabel>
+          <ControlLabel>
+            Workspace path
             <input
               autoComplete="off"
-              value={initialPath}
-              onChange={(event) => setInitialPath(event.target.value)}
+              value={workspacePath}
+              onChange={(event) => setWorkspacePath(event.target.value)}
               placeholder="/"
               style={inputStyle}
               type="text"
@@ -366,21 +378,19 @@ function HyperbrowserFileWorkspaceDemo({
           {
             <HyperbrowserFileWorkspace
               {...activeConfig}
-              key={`${launchCount}:${appliedConfig.theme}:${appliedConfig.initialPath}`}
-              onCreateDirectory={(path) =>
-                setLatestEvent(`Created directory: ${path}`)
-              }
-              onCreateFile={(path) => setLatestEvent(`Created file: ${path}`)}
-              onDelete={(path) => setLatestEvent(`Deleted: ${path}`)}
+              appearance={appliedConfig.appearance}
+              key={launchCount}
               onError={(message) => setLatestEvent(`Error: ${message}`)}
               onOpenFile={(path) => setLatestEvent(`Opened: ${path}`)}
-              onRename={(path, nextPath) =>
-                setLatestEvent(`Renamed ${path} -> ${nextPath}`)
-              }
-              onSaveFile={(path) => setLatestEvent(`Saved: ${path}`)}
+              onWorkspacePathChange={(path) => {
+                setAppliedConfig((current) =>
+                  current ? { ...current, workspacePath: path } : current
+                );
+                setLatestEvent(`Workspace: ${path}`);
+              }}
+              preset={appliedConfig.preset}
               style={{ minHeight: "780px" }}
-              theme={appliedConfig.theme}
-              title="Hyperbrowser File Workspace"
+              title="Hyperbrowser File Browser"
             />
           }
         </div>
@@ -401,14 +411,10 @@ export const hyperbrowserFileWorkspaceScenario = {
   title: "Hyperbrowser File Workspace",
   render({ components }) {
     const HyperbrowserFileWorkspace = components.HyperbrowserFileWorkspace;
-    const configureMonacoLoader = components.configureMonacoLoader;
-    const fileWorkspaceThemePresets = components.fileWorkspaceThemePresets;
+    const fileWorkspaceThemePresets =
+      components.fileWorkspacePresets ?? components.fileWorkspaceThemePresets;
 
-    if (
-      typeof HyperbrowserFileWorkspace !== "function" ||
-      typeof configureMonacoLoader !== "function" ||
-      !fileWorkspaceThemePresets
-    ) {
+    if (typeof HyperbrowserFileWorkspace !== "function" || !fileWorkspaceThemePresets) {
       return (
         <Card>
           <p style={{ margin: 0 }}>
@@ -422,7 +428,6 @@ export const hyperbrowserFileWorkspaceScenario = {
     return (
       <HyperbrowserFileWorkspaceDemo
         HyperbrowserFileWorkspace={HyperbrowserFileWorkspace}
-        configureMonacoLoader={configureMonacoLoader}
         fileWorkspaceThemePresets={fileWorkspaceThemePresets}
       />
     );

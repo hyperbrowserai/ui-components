@@ -3,12 +3,10 @@ import { TerminalSurface } from "../terminal/TerminalSurface";
 import type { TerminalSurfaceProps } from "../terminal/types";
 import {
   createHyperbrowserPtyConnection,
-  type HyperbrowserPtyBrowserAuthParams,
-  type HyperbrowserPtyBrowserAuthResolver,
   type HyperbrowserPtyConnectionOptions,
   type HyperbrowserPtyStatus,
-  type HyperbrowserRuntimeBrowserAuth,
 } from "./hyperbrowser-pty-connection";
+import { useHyperbrowserRuntime } from "./HyperbrowserRuntimeProvider";
 import {
   useSandboxTerminalConnection,
   getSandboxTerminalConnectionIdentity,
@@ -19,20 +17,18 @@ export type HyperbrowserTerminalProps = Omit<
   TerminalSurfaceProps,
   "connection"
 > &
-  UseSandboxTerminalConnectionOptions;
+  Omit<UseSandboxTerminalConnectionOptions, "getRuntimeAccess">;
 
 export {
   createHyperbrowserPtyConnection,
-  type HyperbrowserPtyBrowserAuthParams,
-  type HyperbrowserPtyBrowserAuthResolver,
   type HyperbrowserPtyConnectionOptions,
-  type HyperbrowserRuntimeBrowserAuth,
   type HyperbrowserPtyStatus,
   useSandboxTerminalConnection,
   type UseSandboxTerminalConnectionOptions,
 };
 
-function HyperbrowserTerminalSession(props: HyperbrowserTerminalProps) {
+export function HyperbrowserTerminal(props: HyperbrowserTerminalProps) {
+  const { ensureRuntimeAccess } = useHyperbrowserRuntime();
   const {
     appearance,
     autoFocus,
@@ -50,10 +46,16 @@ function HyperbrowserTerminalSession(props: HyperbrowserTerminalProps) {
     title,
   } = props;
 
-  const connection = useSandboxTerminalConnection(props);
+  const connectionOptions: UseSandboxTerminalConnectionOptions = {
+    ...props,
+    getRuntimeAccess: ensureRuntimeAccess,
+  };
+  const terminalKey = getSandboxTerminalConnectionIdentity(connectionOptions);
+  const connection = useSandboxTerminalConnection(connectionOptions);
 
   return (
     <TerminalSurface
+      key={terminalKey}
       appearance={appearance}
       autoFocus={autoFocus}
       className={className}
@@ -71,10 +73,4 @@ function HyperbrowserTerminalSession(props: HyperbrowserTerminalProps) {
       title={title ?? "Hyperbrowser Terminal"}
     />
   );
-}
-
-export function HyperbrowserTerminal(props: HyperbrowserTerminalProps) {
-  const terminalKey = getSandboxTerminalConnectionIdentity(props);
-
-  return <HyperbrowserTerminalSession key={terminalKey} {...props} />;
 }

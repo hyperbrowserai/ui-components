@@ -6,6 +6,10 @@ import type {
   TerminalSize,
   TerminalUnsubscribe,
 } from "../terminal/types";
+import type {
+  HyperbrowserRuntimeAccess,
+  HyperbrowserRuntimeAccessResolver,
+} from "./hyperbrowser-runtime";
 
 const DEFAULT_CREATE_RETRY_COUNT = 4;
 const DEFAULT_CREATE_RETRY_DELAY_MS = 700;
@@ -13,20 +17,6 @@ const DEFAULT_RECONNECT_RETRY_DELAY_MS = 1000;
 const DEFAULT_INPUT_BATCH_DELAY_MS = 16;
 const DEFAULT_INPUT_BATCH_MAX_BYTES = 8192;
 const DEFAULT_TERMINATE_CLEANUP_TIMEOUT_MS = 3000;
-const DEFAULT_HYPERBROWSER_API_BASE_URL = "https://api.hyperbrowser.ai/api";
-
-export type HyperbrowserRuntimeBrowserAuth = {
-  allowedOrigin?: string;
-  bootstrapUrl: string;
-  bootstrapUrlExpiresAt?: string | null;
-  capabilities?: string[];
-};
-
-export type HyperbrowserPtyBrowserAuthParams = {
-  browserAuthEndpoint?: string;
-  sandboxId?: string;
-  signal: AbortSignal;
-};
 
 export type HyperbrowserPtyStatus = {
   cols: number;
@@ -43,16 +33,8 @@ export type HyperbrowserPtyStatus = {
   timedOut?: boolean;
 };
 
-export type HyperbrowserPtyBrowserAuthResolver = (
-  params: HyperbrowserPtyBrowserAuthParams
-) => Promise<HyperbrowserRuntimeBrowserAuth>;
-
 export type HyperbrowserPtyConnectionOptions = {
-  apiBaseUrl?: string;
-  apiCredentials?: RequestCredentials;
-  apiHeaders?: HeadersInit | (() => HeadersInit | Promise<HeadersInit>);
   args?: string[];
-  bootstrapUrl?: string;
   closeBehavior?: "disconnect" | "terminate";
   command?: string;
   createRetryCount?: number;
@@ -61,19 +43,16 @@ export type HyperbrowserPtyConnectionOptions = {
   env?: Record<string, string>;
   existingPtyId?: string;
   fetch?: typeof fetch;
-  getRuntimeBrowserAuth?: HyperbrowserPtyBrowserAuthResolver;
+  getRuntimeAccess: HyperbrowserRuntimeAccessResolver;
   inputBatchDelayMs?: number;
   inputBatchMaxBytes?: number;
   killSignal?: string;
   maxReconnectAttempts?: number;
   reconnectRetryDelayMs?: number;
-  sandboxId?: string;
   timeoutMs?: number;
   useShell?: boolean;
   webSocketFactory?: (url: string) => WebSocket;
 };
-
-type HyperbrowserBrowserAuthResponse = HyperbrowserRuntimeBrowserAuth;
 
 type HyperbrowserPtyApiEnvelope = {
   pty: HyperbrowserPtyStatus;
@@ -96,11 +75,6 @@ type HyperbrowserPtyServerEvent =
   | HyperbrowserPtyOutputEvent
   | HyperbrowserPtyExitEvent;
 
-type HyperbrowserResolvedRuntimeAccess = {
-  bootstrapUrl: string;
-  runtimeBaseUrl: string;
-};
-
 type HyperbrowserPtyCloseBehavior = NonNullable<
   HyperbrowserPtyConnectionOptions["closeBehavior"]
 >;
@@ -122,34 +96,30 @@ class HyperbrowserRequestError extends Error {
 }
 
 function resolveFetchImplementation(
-  fetchImpl: typeof fetch | undefined
+  fetchImpl: typeof fetch | undefined,
 ): typeof fetch {
   const resolved = fetchImpl ?? globalThis.fetch;
   if (typeof resolved !== "function") {
-    throw new Error("Hyperbrowser PTY transport requires a global fetch implementation.");
+    throw new Error(
+      "Hyperbrowser PTY transport requires a global fetch implementation.",
+    );
   }
   return ((input: RequestInfo | URL, init?: RequestInit) =>
     Reflect.apply(resolved, globalThis, [input, init])) as typeof fetch;
 }
 
 function resolveWebSocketFactory(
-  webSocketFactory: HyperbrowserPtyConnectionOptions["webSocketFactory"]
+  webSocketFactory: HyperbrowserPtyConnectionOptions["webSocketFactory"],
 ): (url: string) => WebSocket {
   if (webSocketFactory) {
     return webSocketFactory;
   }
   if (typeof WebSocket !== "function") {
-    throw new Error("Hyperbrowser PTY transport requires a global WebSocket implementation.");
+    throw new Error(
+      "Hyperbrowser PTY transport requires a global WebSocket implementation.",
+    );
   }
   return (url) => new WebSocket(url);
-}
-
-function resolveHeaders(
-  input: HyperbrowserPtyConnectionOptions["apiHeaders"]
-): Promise<Headers> {
-  return Promise.resolve(typeof input === "function" ? input() : input).then(
-    (value) => new Headers(value)
-  );
 }
 
 function resolveUrl(baseUrl: string, path: string): URL {
@@ -160,47 +130,11 @@ function resolveUrl(baseUrl: string, path: string): URL {
   return new URL(path.replace(/^\/+/, ""), normalizedBaseUrl);
 }
 
-function resolveAbsoluteUrl(input: string): URL {
-  try {
-    return new URL(input);
-  } catch {
-    if (typeof window !== "undefined" && window.location) {
-      return new URL(input, window.location.href);
-    }
-
-    throw new Error("Hyperbrowser PTY bootstrap URL must be absolute outside the browser.");
-  }
-}
-
-function deriveRuntimeBaseUrl(bootstrapUrl: string): string {
-  return resolveAbsoluteUrl(bootstrapUrl).origin;
-}
-
-function resolveBrowserAuthEndpoint(
-  options: HyperbrowserPtyConnectionOptions
-): string | undefined {
-  if (!options.sandboxId) {
-    return undefined;
-  }
-
-  if (options.getRuntimeBrowserAuth) {
-    return resolveUrl(
-      options.apiBaseUrl ?? DEFAULT_HYPERBROWSER_API_BASE_URL,
-      `sandbox/${encodeURIComponent(options.sandboxId)}/runtime/browser-auth`
-    ).toString();
-  }
-
-  if (!options.apiBaseUrl) {
-    return undefined;
-  }
-
-  return resolveUrl(
-    options.apiBaseUrl,
-    `sandbox/${encodeURIComponent(options.sandboxId)}/runtime/browser-auth`
-  ).toString();
-}
-
-function toWebSocketUrl(baseUrl: string, path: string, query?: URLSearchParams): string {
+function toWebSocketUrl(
+  baseUrl: string,
+  path: string,
+  query?: URLSearchParams,
+): string {
   const url = resolveUrl(baseUrl, path);
   url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
   url.search = query?.toString() ?? "";
@@ -251,8 +185,7 @@ function shouldRetryInitialCreate(error: unknown): boolean {
 function toTerminalExitEvent(status: HyperbrowserPtyStatus): TerminalExitEvent {
   return {
     error: status.error || undefined,
-    exitCode:
-      typeof status.exitCode === "number" ? status.exitCode : undefined,
+    exitCode: typeof status.exitCode === "number" ? status.exitCode : undefined,
   };
 }
 
@@ -267,7 +200,10 @@ function encodeBase64(bytes: Uint8Array): string {
   let binary = "";
   const chunkSize = 0x8000;
   for (let index = 0; index < bytes.length; index += chunkSize) {
-    const chunk = bytes.subarray(index, Math.min(index + chunkSize, bytes.length));
+    const chunk = bytes.subarray(
+      index,
+      Math.min(index + chunkSize, bytes.length),
+    );
     binary += String.fromCharCode(...chunk);
   }
   return btoa(binary);
@@ -284,7 +220,7 @@ function decodeBase64(value: string): Uint8Array {
 
 async function readJsonResponse<T>(
   response: Response,
-  fallbackMessage: string
+  fallbackMessage: string,
 ): Promise<T> {
   const text = await response.text();
   let payload: Record<string, unknown> = {};
@@ -297,7 +233,7 @@ async function readJsonResponse<T>(
       }
       throw new HyperbrowserRequestError(
         `Invalid JSON response from server. ${fallbackMessage}`,
-        response.status
+        response.status,
       );
     }
   }
@@ -309,49 +245,6 @@ async function readJsonResponse<T>(
     throw new HyperbrowserRequestError(message, response.status);
   }
   return payload as T;
-}
-
-async function fetchRuntimeBrowserAuth(
-  options: HyperbrowserPtyConnectionOptions,
-  signal: AbortSignal,
-  keepalive = false
-): Promise<HyperbrowserBrowserAuthResponse> {
-  const browserAuthEndpoint = resolveBrowserAuthEndpoint(options);
-
-  if (options.getRuntimeBrowserAuth) {
-    return options.getRuntimeBrowserAuth({
-      browserAuthEndpoint,
-      sandboxId: options.sandboxId,
-      signal,
-    });
-  }
-
-  if (options.bootstrapUrl) {
-    return {
-      bootstrapUrl: options.bootstrapUrl,
-    };
-  }
-
-  if (!browserAuthEndpoint) {
-    throw new Error(
-      "Hyperbrowser PTY transport requires either getRuntimeBrowserAuth, bootstrapUrl, or apiBaseUrl + sandboxId."
-    );
-  }
-
-  const fetchImpl = resolveFetchImplementation(options.fetch);
-  const headers = await resolveHeaders(options.apiHeaders);
-  const response = await fetchImpl(browserAuthEndpoint, {
-    credentials: options.apiCredentials ?? "include",
-    headers,
-    keepalive,
-    method: "POST",
-    signal,
-  });
-
-  return readJsonResponse<HyperbrowserBrowserAuthResponse>(
-    response,
-    "Failed to issue runtime browser auth."
-  );
 }
 
 class HyperbrowserPtySession implements TerminalSession {
@@ -366,7 +259,9 @@ class HyperbrowserPtySession implements TerminalSession {
   private readonly inputBatchMaxBytes: number;
   private readonly options: HyperbrowserPtyConnectionOptions;
   private readonly outputListeners = new Set<(data: Uint8Array) => void>();
-  private readonly exitListeners = new Set<(event: TerminalExitEvent) => void>();
+  private readonly exitListeners = new Set<
+    (event: TerminalExitEvent) => void
+  >();
   private readonly reconnectRetryDelayMs: number;
   private readonly webSocketFactory: (url: string) => WebSocket;
   private explicitClose = false;
@@ -378,18 +273,19 @@ class HyperbrowserPtySession implements TerminalSession {
   private ptyId: string | null;
   private reconnectAttempts = 0;
   private reconnectTimerId: number | null = null;
-  private runtimeAccess: HyperbrowserResolvedRuntimeAccess | null = null;
+  private runtimeAccess: HyperbrowserRuntimeAccess | null = null;
   private size: TerminalSize;
   private socket: WebSocket | null = null;
   private terminated = false;
 
   constructor(
     options: HyperbrowserPtyConnectionOptions,
-    connectParams: TerminalConnectParams
+    connectParams: TerminalConnectParams,
   ) {
     this.abortSignal = connectParams.signal;
     this.closeBehavior = options.closeBehavior ?? "disconnect";
-    this.createRetryCount = options.createRetryCount ?? DEFAULT_CREATE_RETRY_COUNT;
+    this.createRetryCount =
+      options.createRetryCount ?? DEFAULT_CREATE_RETRY_COUNT;
     this.createRetryDelayMs =
       options.createRetryDelayMs ?? DEFAULT_CREATE_RETRY_DELAY_MS;
     this.fetchImpl = resolveFetchImplementation(options.fetch);
@@ -410,7 +306,7 @@ class HyperbrowserPtySession implements TerminalSession {
       if (!this.ptyId) {
         await this.createPtyWithRetry();
       } else {
-        await this.bootstrapRuntimeAuth();
+        await this.ensureRuntimeAccess();
       }
 
       await this.openSocket(this.lastSeq);
@@ -469,7 +365,7 @@ class HyperbrowserPtySession implements TerminalSession {
         cols: size.cols,
         rows: size.rows,
         type: "resize",
-      })
+      }),
     );
   }
 
@@ -541,7 +437,7 @@ class HyperbrowserPtySession implements TerminalSession {
 
     while (true) {
       try {
-        await this.bootstrapRuntimeAuth();
+        await this.ensureRuntimeAccess();
         const response = await this.runtimeFetch<HyperbrowserPtyApiEnvelope>(
           resolveUrl(this.getRuntimeBaseUrl(), "sandbox/pty"),
           {
@@ -559,7 +455,7 @@ class HyperbrowserPtySession implements TerminalSession {
               "Content-Type": "application/json",
             },
             method: "POST",
-          }
+          },
         );
         this.ptyId = response.pty.id;
         this.createdPtyDuringStart = true;
@@ -578,7 +474,9 @@ class HyperbrowserPtySession implements TerminalSession {
     }
   }
 
-  private async killPty(requestOptions: RuntimeRequestOptions = {}): Promise<void> {
+  private async killPty(
+    requestOptions: RuntimeRequestOptions = {},
+  ): Promise<void> {
     if (!this.ptyId) {
       return;
     }
@@ -586,7 +484,7 @@ class HyperbrowserPtySession implements TerminalSession {
     await this.runtimeFetch(
       resolveUrl(
         this.getRuntimeBaseUrl(),
-        `sandbox/pty/${encodeURIComponent(this.ptyId)}/kill`
+        `sandbox/pty/${encodeURIComponent(this.ptyId)}/kill`,
       ),
       {
         body: JSON.stringify({
@@ -597,7 +495,7 @@ class HyperbrowserPtySession implements TerminalSession {
         },
         method: "POST",
       },
-      requestOptions
+      requestOptions,
     );
   }
 
@@ -628,7 +526,7 @@ class HyperbrowserPtySession implements TerminalSession {
         data: encodeBase64(combined),
         encoding: "base64",
         type: "input",
-      })
+      }),
     );
   }
 
@@ -645,7 +543,9 @@ class HyperbrowserPtySession implements TerminalSession {
       payload = JSON.parse(event.data) as HyperbrowserPtyServerEvent;
     } catch (error) {
       this.failSession(
-        error instanceof Error ? error : new Error("Invalid PTY websocket payload.")
+        error instanceof Error
+          ? error
+          : new Error("Invalid PTY websocket payload."),
       );
       return;
     }
@@ -692,11 +592,11 @@ class HyperbrowserPtySession implements TerminalSession {
     const response = await this.runtimeFetch<HyperbrowserPtyApiEnvelope>(
       resolveUrl(
         this.getRuntimeBaseUrl(),
-        `sandbox/pty/${encodeURIComponent(this.ptyId)}`
+        `sandbox/pty/${encodeURIComponent(this.ptyId)}`,
       ),
       {
         method: "GET",
-      }
+      },
     );
 
     return response.pty;
@@ -720,13 +620,13 @@ class HyperbrowserPtySession implements TerminalSession {
       query.set("cursor", String(cursor));
     }
 
+    await this.ensureRuntimeAccess();
+
     const url = toWebSocketUrl(
       this.getRuntimeBaseUrl(),
       `sandbox/pty/${encodeURIComponent(this.ptyId)}/ws`,
-      query
+      query,
     );
-
-    await this.bootstrapRuntimeAuth();
 
     await new Promise<void>((resolve, reject) => {
       const socket = this.webSocketFactory(url);
@@ -784,7 +684,9 @@ class HyperbrowserPtySession implements TerminalSession {
 
       socket.addEventListener("close", () => {
         if (!settled) {
-          rejectOnce(new Error("PTY websocket connection closed before it opened."));
+          rejectOnce(
+            new Error("PTY websocket connection closed before it opened."),
+          );
           return;
         }
         this.handleSocketClosed();
@@ -799,31 +701,21 @@ class HyperbrowserPtySession implements TerminalSession {
     });
   }
 
-  private async bootstrapRuntimeAuth(
+  private async ensureRuntimeAccess(
     signal: AbortSignal = this.abortSignal,
-    keepalive = false
+    forceRefresh = false,
   ): Promise<void> {
-    const runtimeAuth = await fetchRuntimeBrowserAuth(this.options, signal, keepalive);
-    const runtimeBaseUrl = deriveRuntimeBaseUrl(runtimeAuth.bootstrapUrl);
-
-    this.runtimeAccess = {
-      bootstrapUrl: runtimeAuth.bootstrapUrl,
-      runtimeBaseUrl,
-    };
-
-    const response = await this.fetchImpl(runtimeAuth.bootstrapUrl, {
-      credentials: "include",
-      keepalive,
-      method: "GET",
+    const runtimeAccess = await this.options.getRuntimeAccess({
+      forceRefresh,
       signal,
     });
-    await readJsonResponse<Record<string, never>>(response, "Runtime auth bootstrap failed.");
+    this.runtimeAccess = runtimeAccess;
   }
 
   private async runtimeFetch<T = Record<string, never>>(
     url: URL,
     init: RequestInit,
-    requestOptions: RuntimeRequestOptions = {}
+    requestOptions: RuntimeRequestOptions = {},
   ): Promise<T> {
     const {
       allowRetry = true,
@@ -838,7 +730,7 @@ class HyperbrowserPtySession implements TerminalSession {
     });
 
     if (!response.ok && response.status === 401 && allowRetry) {
-      await this.bootstrapRuntimeAuth(signal, keepalive);
+      await this.ensureRuntimeAccess(signal, true);
       return this.runtimeFetch<T>(url, init, {
         allowRetry: false,
         keepalive,
@@ -856,7 +748,7 @@ class HyperbrowserPtySession implements TerminalSession {
       }
 
       if (!this.runtimeAccess) {
-        await this.bootstrapRuntimeAuth(signal, true);
+        await this.ensureRuntimeAccess(signal, true);
       }
 
       await this.killPty({
@@ -876,11 +768,13 @@ class HyperbrowserPtySession implements TerminalSession {
   }
 
   private shouldTerminateOnClose(): boolean {
-    return this.closeBehavior === "terminate" && !!this.ptyId && !this.hasEmittedExit;
+    return (
+      this.closeBehavior === "terminate" && !!this.ptyId && !this.hasEmittedExit
+    );
   }
 
   private async withTerminateCleanupSignal(
-    callback: (signal: AbortSignal) => Promise<void>
+    callback: (signal: AbortSignal) => Promise<void>,
   ): Promise<void> {
     const controller = new AbortController();
     const timeoutId = window.setTimeout(() => {
@@ -895,7 +789,11 @@ class HyperbrowserPtySession implements TerminalSession {
   }
 
   private scheduleReconnect(): void {
-    if (this.reconnectTimerId !== null || this.terminated || this.hasEmittedExit) {
+    if (
+      this.reconnectTimerId !== null ||
+      this.terminated ||
+      this.hasEmittedExit
+    ) {
       return;
     }
 
@@ -921,7 +819,7 @@ class HyperbrowserPtySession implements TerminalSession {
     this.reconnectAttempts += 1;
 
     try {
-      await this.bootstrapRuntimeAuth();
+      await this.ensureRuntimeAccess();
       const status = await this.fetchPtyStatus();
       if (!status.running) {
         this.emitExit(toTerminalExitEvent(status));
@@ -943,7 +841,7 @@ class HyperbrowserPtySession implements TerminalSession {
 }
 
 function normalizeConnectionOptions(
-  options: HyperbrowserPtyConnectionOptions
+  options: HyperbrowserPtyConnectionOptions,
 ): HyperbrowserPtyConnectionOptions {
   return {
     ...options,
@@ -953,13 +851,18 @@ function normalizeConnectionOptions(
 }
 
 export function createHyperbrowserPtyConnection(
-  options: HyperbrowserPtyConnectionOptions
+  options: HyperbrowserPtyConnectionOptions,
 ): TerminalConnection {
   const normalizedOptions = normalizeConnectionOptions(options);
 
   return {
-    async connect(connectParams: TerminalConnectParams): Promise<TerminalSession> {
-      const session = new HyperbrowserPtySession(normalizedOptions, connectParams);
+    async connect(
+      connectParams: TerminalConnectParams,
+    ): Promise<TerminalSession> {
+      const session = new HyperbrowserPtySession(
+        normalizedOptions,
+        connectParams,
+      );
       await session.start();
       return session;
     },
