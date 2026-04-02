@@ -1,16 +1,40 @@
 .hb-filesystem {
   --hb-filesystem-accent: #2563eb;
-  --hb-filesystem-accent-border: color-mix(in srgb, var(--hb-filesystem-accent) 24%, var(--hb-filesystem-border));
-  --hb-filesystem-accent-glow: color-mix(in srgb, var(--hb-filesystem-accent) 7%, transparent);
-  --hb-filesystem-accent-ring: color-mix(in srgb, var(--hb-filesystem-accent) 18%, transparent);
-  --hb-filesystem-accent-soft: color-mix(in srgb, var(--hb-filesystem-accent) 10%, transparent);
+  --hb-filesystem-accent-border: color-mix(
+    in srgb,
+    var(--hb-filesystem-accent) 24%,
+    var(--hb-filesystem-border)
+  );
+  --hb-filesystem-accent-glow: color-mix(
+    in srgb,
+    var(--hb-filesystem-accent) 7%,
+    transparent
+  );
+  --hb-filesystem-accent-ring: color-mix(
+    in srgb,
+    var(--hb-filesystem-accent) 18%,
+    transparent
+  );
+  --hb-filesystem-accent-soft: color-mix(
+    in srgb,
+    var(--hb-filesystem-accent) 10%,
+    transparent
+  );
   --hb-filesystem-background: #f8fafc;
   --hb-filesystem-border: #e2e8f0;
   --hb-filesystem-danger: #b42318;
   --hb-filesystem-divider: #e2e8f0;
   --hb-filesystem-editor-background: #ffffff;
-  --hb-filesystem-gutter-text: color-mix(in srgb, var(--hb-filesystem-text-muted) 68%, var(--hb-filesystem-divider) 32%);
-  --hb-filesystem-icon-muted: color-mix(in srgb, var(--hb-filesystem-text-muted) 92%, transparent);
+  --hb-filesystem-gutter-text: color-mix(
+    in srgb,
+    var(--hb-filesystem-text-muted) 68%,
+    var(--hb-filesystem-divider) 32%
+  );
+  --hb-filesystem-icon-muted: color-mix(
+    in srgb,
+    var(--hb-filesystem-text-muted) 92%,
+    transparent
+  );
   --hb-filesystem-panel: #fcfdff;
   --hb-filesystem-panel-muted: #f8fafc;
   --hb-filesystem-row-active: #eaf2ff;
@@ -18,13 +42,29 @@
   --hb-filesystem-shadow: 0 16px 40px rgba(15, 23, 42, 0.06);
   --hb-filesystem-soft-shadow: var(--hb-filesystem-shadow);
   --hb-filesystem-strong-shadow: var(--hb-filesystem-shadow);
-  --hb-filesystem-surface-elevated: color-mix(in srgb, var(--hb-filesystem-panel) 92%, var(--hb-filesystem-background) 8%);
-  --hb-filesystem-surface-muted: color-mix(in srgb, var(--hb-filesystem-panel-muted) 55%, var(--hb-filesystem-panel) 45%);
+  --hb-filesystem-surface-elevated: color-mix(
+    in srgb,
+    var(--hb-filesystem-panel) 92%,
+    var(--hb-filesystem-background) 8%
+  );
+  --hb-filesystem-surface-muted: color-mix(
+    in srgb,
+    var(--hb-filesystem-panel-muted) 55%,
+    var(--hb-filesystem-panel) 45%
+  );
   --hb-filesystem-text: #0f172a;
   --hb-filesystem-text-muted: #64748b;
-  --hb-filesystem-warning-soft: color-mix(in srgb, var(--hb-filesystem-warning) 10%, transparent);
+  --hb-filesystem-warning-soft: color-mix(
+    in srgb,
+    var(--hb-filesystem-warning) 10%,
+    transparent
+  );
   --hb-filesystem-warning: #b54708;
-  background: linear-gradient(180deg, var(--hb-filesystem-background) 0%, var(--hb-filesystem-panel) 100%);
+  background: linear-gradient(
+    180deg,
+    var(--hb-filesystem-background) 0%,
+    var(--hb-filesystem-panel) 100%
+  );
   border: 1px solid var(--hb-filesystem-border);
   border-radius: 16px;
   box-shadow: var(--hb-filesystem-shadow);
@@ -125,7 +165,9 @@
   gap: 0;
   grid-template-columns: minmax(250px, 290px) 1fr;
   grid-template-rows: auto minmax(0, 1fr);
+  height: 100%;
   min-height: 0;
+  overflow: hidden;
 }
 
 .hb-filesystem__bodyHeader {
@@ -151,11 +193,17 @@
 }
 
 .hb-filesystem__sidebar {
-  background: linear-gradient(180deg, var(--hb-filesystem-panel) 0%, var(--hb-filesystem-panel-muted) 100%);
+  background: linear-gradient(
+    180deg,
+    var(--hb-filesystem-panel) 0%,
+    var(--hb-filesystem-panel-muted) 100%
+  );
   border-right: 1px solid var(--hb-filesystem-divider);
+  display: grid;
   grid-column: 1;
   grid-row: 2;
   min-height: 0;
+  overflow: hidden;
 }
 
 .hb-filesystem__workspaceSwitcher {
@@ -270,7 +318,11 @@
 
 .hb-filesystem__workspaceMenuConfirm:hover,
 .hb-filesystem__workspaceMenuConfirm:focus-visible {
-  background: color-mix(in srgb, var(--hb-filesystem-accent) 86%, var(--hb-filesystem-text) 14%);
+  background: color-mix(
+    in srgb,
+    var(--hb-filesystem-accent) 86%,
+    var(--hb-filesystem-text) 14%
+  );
   outline: none;
 }
 
@@ -340,6 +392,7 @@
   display: grid;
   align-content: start;
   gap: 0.05rem;
+  height: 100%;
   min-height: 0;
   overflow: auto;
   padding: 0.5rem 0.35rem 0.5rem 0.35rem;
@@ -483,24 +536,34 @@
   grid-column: 2;
   grid-row: 2;
   min-height: 0;
+  min-width: 0;
+  overflow: auto;
 }
 
-.hb-filesystem__preview,
+.hb-filesystem__preview {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 100%;
+}
+
 .hb-filesystem__empty {
   display: grid;
-  min-height: 0;
+  min-height: 100%;
 }
 
 .hb-filesystem__assetFrame {
   align-content: center;
   background:
-    linear-gradient(180deg, var(--hb-filesystem-surface-elevated), var(--hb-filesystem-editor-background)),
+    linear-gradient(
+      180deg,
+      var(--hb-filesystem-surface-elevated),
+      var(--hb-filesystem-editor-background)
+    ),
     var(--hb-filesystem-editor-background);
   display: grid;
   gap: 0.85rem;
   justify-items: center;
-  min-height: 0;
-  overflow: auto;
+  min-height: 100%;
   padding: 1.25rem;
 }
 
@@ -521,7 +584,8 @@
   color: var(--hb-filesystem-text-muted);
   display: block;
   flex: 1 1 auto;
-  font-family: "IBM Plex Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-family:
+    "IBM Plex Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
   font-size: 0.76rem;
   overflow: hidden;
   padding: 0;
@@ -581,7 +645,8 @@
 }
 
 .hb-filesystem__copyButton[data-state="idle"] .hb-filesystem__copyIcon--copy,
-.hb-filesystem__copyButton[data-state="copied"] .hb-filesystem__copyIcon--check {
+.hb-filesystem__copyButton[data-state="copied"]
+  .hb-filesystem__copyIcon--check {
   opacity: 1;
   transform: scale(1);
 }
@@ -611,10 +676,14 @@
 }
 
 .hb-filesystem__codeFrame {
-  background: linear-gradient(180deg, var(--hb-filesystem-panel) 0%, var(--hb-filesystem-editor-background) 100%);
+  background: linear-gradient(
+    180deg,
+    var(--hb-filesystem-panel) 0%,
+    var(--hb-filesystem-editor-background) 100%
+  );
   display: grid;
   grid-template-columns: auto 1fr;
-  min-height: 0;
+  min-height: 100%;
 }
 
 .hb-filesystem__codeGutter,
@@ -624,7 +693,7 @@
   line-height: var(--hb-filesystem-code-line-height);
   margin: 0;
   min-height: 100%;
-  overflow: auto;
+  overflow: visible;
   padding: 1rem 0;
   tab-size: 2;
 }
@@ -680,13 +749,22 @@
 .hb-filesystem__binaryState {
   align-content: center;
   background:
-    linear-gradient(180deg, var(--hb-filesystem-panel), var(--hb-filesystem-surface-muted)),
+    linear-gradient(
+      180deg,
+      var(--hb-filesystem-panel),
+      var(--hb-filesystem-surface-muted)
+    ),
     var(--hb-filesystem-panel);
   border: 1px solid var(--hb-filesystem-border);
   border-radius: 20px;
   box-shadow:
     var(--hb-filesystem-strong-shadow),
-    inset 0 1px 0 color-mix(in srgb, var(--hb-filesystem-panel) 76%, var(--hb-filesystem-background) 24%);
+    inset 0 1px 0
+      color-mix(
+        in srgb,
+        var(--hb-filesystem-panel) 76%,
+        var(--hb-filesystem-background) 24%
+      );
   display: grid;
   gap: 1rem;
   justify-items: center;
@@ -699,8 +777,16 @@
 .hb-filesystem__binaryShell {
   align-content: center;
   background:
-    radial-gradient(circle at top, var(--hb-filesystem-accent-glow), transparent 34%),
-    linear-gradient(180deg, var(--hb-filesystem-surface-muted), var(--hb-filesystem-editor-background));
+    radial-gradient(
+      circle at top,
+      var(--hb-filesystem-accent-glow),
+      transparent 34%
+    ),
+    linear-gradient(
+      180deg,
+      var(--hb-filesystem-surface-muted),
+      var(--hb-filesystem-editor-background)
+    );
   display: grid;
   justify-items: center;
   min-height: 100%;
@@ -760,7 +846,7 @@
 @media (max-width: 960px) {
   .hb-filesystem__body {
     grid-template-columns: 1fr;
-    grid-template-rows: auto minmax(220px, auto) auto minmax(0, 1fr);
+    grid-template-rows: auto minmax(14rem, 18rem) auto minmax(0, 1fr);
   }
 
   .hb-filesystem__bodyHeader--sidebar,
