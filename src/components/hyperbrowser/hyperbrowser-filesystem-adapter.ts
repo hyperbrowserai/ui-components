@@ -13,6 +13,8 @@ type HyperbrowserRuntimeTarget = {
   transport?: string;
 };
 
+const DEFAULT_HYPERBROWSER_API_BASE_URL = "https://api.hyperbrowser.ai/api";
+
 export type HyperbrowserRuntimeBrowserAuth = {
   allowedOrigin?: string;
   bootstrapUrl: string;
@@ -21,9 +23,15 @@ export type HyperbrowserRuntimeBrowserAuth = {
   runtime: HyperbrowserRuntimeTarget;
 };
 
-export type HyperbrowserFilesystemBrowserAuthResolver = (params: {
+export type HyperbrowserFilesystemBrowserAuthParams = {
+  browserAuthEndpoint?: string;
+  sandboxId?: string;
   signal: AbortSignal;
-}) => Promise<HyperbrowserRuntimeBrowserAuth>;
+};
+
+export type HyperbrowserFilesystemBrowserAuthResolver = (
+  params: HyperbrowserFilesystemBrowserAuthParams
+) => Promise<HyperbrowserRuntimeBrowserAuth>;
 
 export type HyperbrowserFilesystemAdapterOptions = {
   apiBaseUrl?: string;
@@ -185,6 +193,13 @@ function toPreview(
         `${kind} preview for ${normalizedPath} did not include a URL.`
       );
     }
+    try {
+      new URL(preview.url);
+    } catch {
+      throw new HyperbrowserRequestError(
+        `${kind} preview for ${normalizedPath} did not include an absolute URL.`
+      );
+    }
 
     return {
       contentType: preview.contentType,
@@ -245,12 +260,32 @@ function resolveHeaders(
   );
 }
 
+function resolveBrowserAuthEndpoint(
+  options: HyperbrowserFilesystemAdapterOptions
+): string | undefined {
+  if (!options.sandboxId) {
+    return undefined;
+  }
+
+  return resolveUrl(
+    options.apiBaseUrl ?? DEFAULT_HYPERBROWSER_API_BASE_URL,
+    options.browserAuthPath ??
+      `sandbox/${encodeURIComponent(options.sandboxId)}/runtime/browser-auth`
+  ).toString();
+}
+
 async function fetchRuntimeBrowserAuth(
   options: HyperbrowserFilesystemAdapterOptions,
   signal: AbortSignal
 ): Promise<HyperbrowserRuntimeBrowserAuth> {
+  const browserAuthEndpoint = resolveBrowserAuthEndpoint(options);
+
   if (options.getRuntimeBrowserAuth) {
-    return options.getRuntimeBrowserAuth({ signal });
+    return options.getRuntimeBrowserAuth({
+      browserAuthEndpoint,
+      sandboxId: options.sandboxId,
+      signal,
+    });
   }
 
   if (options.runtimeBaseUrl && options.bootstrapUrl) {
@@ -262,7 +297,7 @@ async function fetchRuntimeBrowserAuth(
     };
   }
 
-  if (!options.apiBaseUrl || !options.sandboxId) {
+  if (!browserAuthEndpoint) {
     throw new Error(
       "Hyperbrowser filesystem transport requires either getRuntimeBrowserAuth, runtimeBaseUrl + bootstrapUrl, or apiBaseUrl + sandboxId."
     );
@@ -270,12 +305,7 @@ async function fetchRuntimeBrowserAuth(
 
   const fetchImpl = resolveFetchImplementation(options.fetch);
   const headers = await resolveHeaders(options.apiHeaders);
-  const endpoint = resolveUrl(
-    options.apiBaseUrl,
-    options.browserAuthPath ??
-      `sandbox/${encodeURIComponent(options.sandboxId)}/runtime/browser-auth`
-  );
-  const response = await fetchImpl(endpoint.toString(), {
+  const response = await fetchImpl(browserAuthEndpoint, {
     credentials: options.apiCredentials ?? "include",
     headers,
     method: "POST",
@@ -294,8 +324,8 @@ export function createHyperbrowserFilesystemAdapter(
   const fetchImpl = resolveFetchImplementation(options.fetch);
   let runtimeBaseUrlPromise: Promise<string> | null = null;
 
-  async function ensureRuntimeBaseUrl(): Promise<string> {
-    if (!runtimeBaseUrlPromise) {
+  async function ensureRuntimeBaseUrl(forceRefresh = false): Promise<string> {
+    if (!runtimeBaseUrlPromise || forceRefresh) {
       runtimeBaseUrlPromise = (async () => {
         const controller = new AbortController();
         const runtimeAuth = await fetchRuntimeBrowserAuth(options, controller.signal);
@@ -310,12 +340,10 @@ export function createHyperbrowserFilesystemAdapter(
           method: "GET",
           signal: controller.signal,
         });
-        if (!bootstrapResponse.ok) {
-          throw new HyperbrowserRequestError(
-            "Failed to bootstrap runtime browser auth.",
-            bootstrapResponse.status
-          );
-        }
+        await readJsonResponse<Record<string, never>>(
+          bootstrapResponse,
+          "Failed to bootstrap runtime browser auth."
+        );
         return runtimeAuth.runtime.baseUrl;
       })().catch((error) => {
         runtimeBaseUrlPromise = null;
@@ -329,7 +357,8 @@ export function createHyperbrowserFilesystemAdapter(
   async function requestJson<T>(
     path: string,
     init: RequestInit,
-    query?: Record<string, string | number | undefined>
+    query?: Record<string, string | number | undefined>,
+    allowRetry = true
   ): Promise<T> {
     const runtimeBaseUrl = await ensureRuntimeBaseUrl();
     const url = resolveUrl(runtimeBaseUrl, path);
@@ -341,6 +370,10 @@ export function createHyperbrowserFilesystemAdapter(
       credentials: "include",
       ...init,
     });
+    if (!response.ok && response.status === 401 && allowRetry) {
+      await ensureRuntimeBaseUrl(true);
+      return requestJson<T>(path, init, query, false);
+    }
     return readJsonResponse<T>(response, `Request failed for ${path}.`);
   }
 

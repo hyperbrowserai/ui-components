@@ -1,46 +1,16 @@
-import { useRef } from "react";
+import { useMemo } from "react";
 import { FileWorkspace } from "../filesystem/FileWorkspace";
 import type { FileWorkspaceProps } from "../filesystem/types";
 import {
   createHyperbrowserFilesystemAdapter,
   type HyperbrowserFilesystemAdapterOptions,
+  type HyperbrowserFilesystemBrowserAuthParams,
   type HyperbrowserFilesystemBrowserAuthResolver,
   type HyperbrowserRuntimeBrowserAuth,
 } from "./hyperbrowser-filesystem-adapter";
 
 export type HyperbrowserFileWorkspaceProps = Omit<FileWorkspaceProps, "adapter"> &
   HyperbrowserFilesystemAdapterOptions;
-
-type StableAdapterFactory = {
-  adapter: ReturnType<typeof createHyperbrowserFilesystemAdapter>;
-};
-
-function serializeValue(value: unknown): string {
-  if (!value) {
-    return "";
-  }
-  if (Array.isArray(value)) {
-    return JSON.stringify(value);
-  }
-  if (value instanceof Headers) {
-    return JSON.stringify(Array.from(value.entries()));
-  }
-  if (typeof value === "object") {
-    return JSON.stringify(value, Object.keys(value as Record<string, unknown>).sort());
-  }
-  return String(value);
-}
-
-function createAdapterKey(props: HyperbrowserFileWorkspaceProps): string {
-  return [
-    props.apiBaseUrl ?? "",
-    props.bootstrapUrl ?? "",
-    props.browserAuthPath ?? "",
-    serializeValue(props.apiHeaders),
-    props.runtimeBaseUrl ?? "",
-    props.sandboxId ?? "",
-  ].join("|");
-}
 
 function createAdapterOptions(
   props: HyperbrowserFileWorkspaceProps
@@ -61,6 +31,7 @@ function createAdapterOptions(
 export {
   createHyperbrowserFilesystemAdapter,
   type HyperbrowserFilesystemAdapterOptions,
+  type HyperbrowserFilesystemBrowserAuthParams,
   type HyperbrowserFilesystemBrowserAuthResolver,
   type HyperbrowserRuntimeBrowserAuth,
 };
@@ -68,20 +39,24 @@ export {
 export function HyperbrowserFileWorkspace(
   props: HyperbrowserFileWorkspaceProps
 ) {
-  const adapterFactoryRef = useRef<StableAdapterFactory | null>(null);
-  const adapterKeyRef = useRef<string>("");
-  const adapterKey = createAdapterKey(props);
-
-  if (!adapterFactoryRef.current || adapterKeyRef.current !== adapterKey) {
-    adapterFactoryRef.current = {
-      adapter: createHyperbrowserFilesystemAdapter(createAdapterOptions(props)),
-    };
-    adapterKeyRef.current = adapterKey;
-  }
+  const adapter = useMemo(
+    () => createHyperbrowserFilesystemAdapter(createAdapterOptions(props)),
+    [
+      props.apiBaseUrl,
+      props.apiCredentials,
+      props.apiHeaders,
+      props.bootstrapUrl,
+      props.browserAuthPath,
+      props.fetch,
+      props.getRuntimeBrowserAuth,
+      props.runtimeBaseUrl,
+      props.sandboxId,
+    ]
+  );
 
   return (
     <FileWorkspace
-      adapter={adapterFactoryRef.current.adapter}
+      adapter={adapter}
       className={props.className}
       onCreateDirectory={props.onCreateDirectory}
       onCreateFile={props.onCreateFile}

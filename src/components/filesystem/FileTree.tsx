@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useRef, type KeyboardEvent } from "react";
 import { getDirName, isRootPath, normalizeFilePath } from "./filePath";
 import type { FileEntry } from "./types";
 
@@ -65,6 +65,33 @@ function ChevronIcon({ expanded }: { expanded: boolean }) {
         strokeLinecap="round"
         strokeLinejoin="round"
         strokeWidth="2.2"
+      />
+    </svg>
+  );
+}
+
+function SpinnerIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      className="hb-filesystem__treeSpinner"
+      viewBox="0 0 16 16"
+      fill="none"
+    >
+      <circle
+        className="hb-filesystem__treeSpinnerTrack"
+        cx="8"
+        cy="8"
+        r="5.25"
+        stroke="currentColor"
+        strokeWidth="1.6"
+      />
+      <path
+        className="hb-filesystem__treeSpinnerArc"
+        d="M8 2.75a5.25 5.25 0 0 1 5.25 5.25"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeWidth="1.9"
       />
     </svg>
   );
@@ -157,7 +184,7 @@ export function FileTree({
   }
 
   function handleKeyDown(
-    event: React.KeyboardEvent<HTMLButtonElement>,
+    event: KeyboardEvent<HTMLButtonElement>,
     item: VisibleTreeItem,
     itemIndex: number
   ) {
@@ -255,11 +282,12 @@ export function FileTree({
             {isDirectory ? (
               <button
                 aria-label={isExpanded ? "Collapse directory" : "Expand directory"}
+                aria-busy={isLoading ? "true" : undefined}
                 className="hb-filesystem__treeToggle"
                 onClick={() => onToggleDirectory(item.entry.path)}
                 type="button"
               >
-                <ChevronIcon expanded={isExpanded} />
+                {isLoading ? <SpinnerIcon /> : <ChevronIcon expanded={isExpanded} />}
               </button>
             ) : (
               <span className="hb-filesystem__treeTogglePlaceholder" />
@@ -305,9 +333,6 @@ export function FileTree({
                   <LinkIcon />
                   {normalizeFilePath(item.entry.symlinkTarget)}
                 </span>
-              ) : null}
-              {isLoading ? (
-                <span className="hb-filesystem__treeMeta">Loading…</span>
               ) : null}
             </button>
           </div>

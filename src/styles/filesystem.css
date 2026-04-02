@@ -377,6 +377,21 @@
   transform: rotate(90deg);
 }
 
+.hb-filesystem__treeSpinner {
+  animation: hb-filesystem-tree-spinner 720ms linear infinite;
+  display: block;
+  height: 0.9rem;
+  width: 0.9rem;
+}
+
+.hb-filesystem__treeSpinnerTrack {
+  opacity: 0.22;
+}
+
+.hb-filesystem__treeSpinnerArc {
+  color: var(--hb-filesystem-accent);
+}
+
 .hb-filesystem__treeLabel {
   align-items: center;
   border-radius: 6px;
@@ -450,6 +465,16 @@
   width: 0.8rem;
 }
 
+@keyframes hb-filesystem-tree-spinner {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .hb-filesystem__workspace {
   background: var(--hb-filesystem-editor-background);
   display: grid;
@@ -519,12 +544,55 @@
   flex: 0 0 auto;
   height: 2rem;
   justify-content: center;
+  position: relative;
+  transition:
+    background-color 140ms ease,
+    border-color 180ms ease,
+    color 180ms ease,
+    transform 180ms ease;
   width: 2rem;
 }
 
 .hb-filesystem__copyButton:hover {
   background: var(--hb-filesystem-row-hover);
   color: var(--hb-filesystem-text);
+}
+
+.hb-filesystem__copyButton[data-state="copied"] {
+  background: rgba(37, 99, 235, 0.08);
+  border-color: rgba(37, 99, 235, 0.26);
+  color: var(--hb-filesystem-accent);
+  transform: translateY(-1px);
+}
+
+.hb-filesystem__copyIconStack {
+  display: grid;
+  height: 0.95rem;
+  place-items: center;
+  width: 0.95rem;
+}
+
+.hb-filesystem__copyIcon {
+  grid-area: 1 / 1;
+  transition:
+    opacity 160ms ease,
+    transform 180ms ease;
+}
+
+.hb-filesystem__copyButton[data-state="idle"] .hb-filesystem__copyIcon--copy,
+.hb-filesystem__copyButton[data-state="copied"] .hb-filesystem__copyIcon--check {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.hb-filesystem__copyButton[data-state="idle"] .hb-filesystem__copyIcon--check {
+  opacity: 0;
+  transform: scale(0.72);
+}
+
+.hb-filesystem__copyButton[data-state="copied"] .hb-filesystem__copyIcon--copy {
+  opacity: 0;
+  transform: scale(0.72);
 }
 
 .hb-filesystem__copyButton svg {

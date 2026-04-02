@@ -40,6 +40,7 @@ export {
   createHyperbrowserFilesystemAdapter,
   type HyperbrowserFileWorkspaceProps,
   type HyperbrowserFilesystemAdapterOptions,
+  type HyperbrowserFilesystemBrowserAuthParams,
   type HyperbrowserFilesystemBrowserAuthResolver,
 } from "./components/hyperbrowser/HyperbrowserFileWorkspace";
 

@@ -87,6 +87,20 @@ function CopyIcon() {
   );
 }
 
+function CheckIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 16 16" fill="none">
+      <path
+        d="m3.75 8.5 2.5 2.5 6-6"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.5"
+      />
+    </svg>
+  );
+}
+
 type WorkspacePickerOption = {
   isParent?: boolean;
   path: string;
@@ -206,6 +220,7 @@ export function FileWorkspace({
   const workspacePickerRef = useRef<HTMLDivElement | null>(null);
   const workspacePickerRequestRef = useRef(0);
   const documentRequestRef = useRef(0);
+  const copyResetTimeoutRef = useRef<number | null>(null);
   const activeDocumentRef = useRef<FilePreview | null>(null);
   const activeDocumentPathRef = useRef<string | null>(null);
   const [activeDocumentPath, setActiveDocumentPath] = useState<string | null>(null);
@@ -245,6 +260,9 @@ export function FileWorkspace({
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
+      if (copyResetTimeoutRef.current !== null) {
+        window.clearTimeout(copyResetTimeoutRef.current);
+      }
     };
   }, []);
 
@@ -631,21 +649,33 @@ export function FileWorkspace({
     );
   }
 
-  async function copyActivePath(path: string) {
+  async function copyToClipboard(value: string) {
     if (!navigator?.clipboard?.writeText) {
       return;
     }
 
     try {
-      await navigator.clipboard.writeText(path);
+      await navigator.clipboard.writeText(value);
+      if (copyResetTimeoutRef.current !== null) {
+        window.clearTimeout(copyResetTimeoutRef.current);
+      }
       setCopyState("copied");
-      window.setTimeout(() => {
+      copyResetTimeoutRef.current = window.setTimeout(() => {
         setCopyState("idle");
+        copyResetTimeoutRef.current = null;
       }, 1200);
     } catch {
       setCopyState("idle");
     }
   }
+
+  useEffect(() => {
+    if (copyResetTimeoutRef.current !== null) {
+      window.clearTimeout(copyResetTimeoutRef.current);
+      copyResetTimeoutRef.current = null;
+    }
+    setCopyState("idle");
+  }, [activeDocumentPath]);
 
   function setWorkspacePathValue(path: string) {
     const normalizedPath = normalizeFilePath(path);
@@ -798,17 +828,33 @@ export function FileWorkspace({
           {activeDocument ? (
             <>
               <code className="hb-filesystem__previewPathBar">{activeDocument.path}</code>
-              <button
-                aria-label="Copy file path"
-                className="hb-filesystem__copyButton"
-                onClick={() => {
-                  void copyActivePath(activeDocument.path);
-                }}
-                title={copyState === "copied" ? "Copied" : "Copy path"}
-                type="button"
-              >
-                <CopyIcon />
-              </button>
+              {activeDocument.kind === "text" ? (
+                <button
+                  aria-label="Copy file contents"
+                  className="hb-filesystem__copyButton"
+                  data-state={copyState}
+                  onClick={() => {
+                    void copyToClipboard(activeDocument.contents);
+                  }}
+                  title={copyState === "copied" ? "Copied" : "Copy contents"}
+                  type="button"
+                >
+                  <span className="hb-filesystem__copyIconStack">
+                    <span
+                      aria-hidden={copyState === "copied" ? "true" : undefined}
+                      className="hb-filesystem__copyIcon hb-filesystem__copyIcon--copy"
+                    >
+                      <CopyIcon />
+                    </span>
+                    <span
+                      aria-hidden={copyState !== "copied" ? "true" : undefined}
+                      className="hb-filesystem__copyIcon hb-filesystem__copyIcon--check"
+                    >
+                      <CheckIcon />
+                    </span>
+                  </span>
+                </button>
+              ) : null}
             </>
           ) : (
             <div
