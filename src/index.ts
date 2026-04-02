@@ -30,7 +30,11 @@ export {
 export { FileWorkspace } from "./components/filesystem/FileWorkspace";
 
 export {
+  createFileWorkspaceTheme,
+  defaultFileWorkspaceAppearance,
+  defaultFileWorkspacePreset,
   defaultFileWorkspaceTheme,
+  fileWorkspacePresets,
   fileWorkspaceThemePresets,
   resolveFileWorkspaceTheme,
 } from "./components/filesystem/fileWorkspaceThemes";
@@ -59,15 +63,19 @@ export {
 } from "./components/terminal/terminalThemes";
 
 export type {
+  FileWorkspaceAppearance,
   FileDirectoryListing,
   FileEntry,
   FileEntryType,
   FilePreview,
   FilePreviewKind,
+  FileWorkspacePreset,
+  FileWorkspacePresetName,
   FileWorkspaceAdapter,
   FileWorkspaceChromeTheme,
   FileWorkspaceEditorTheme,
   FileWorkspaceProps,
+  FileWorkspaceSurfaceTheme,
   FileWorkspaceTheme,
   FileWorkspaceThemeName,
   ResolvedFileWorkspaceTheme,

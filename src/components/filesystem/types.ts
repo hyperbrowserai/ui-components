@@ -87,8 +87,6 @@ export type FileWorkspaceChromeTheme = {
   rowActive: string;
   rowHover: string;
   shadow: string;
-  tabActive: string;
-  tabInactive: string;
   text: string;
   textMuted: string;
   warning: string;
@@ -100,25 +98,52 @@ export type FileWorkspaceEditorTheme = {
   lineHeight: number;
 };
 
+export type FileWorkspaceAppearance = "dark" | "light";
+
+export type FileWorkspacePresetName = "basic" | "atlas" | "ledger";
+
+export type FileWorkspacePreset = {
+  chrome: Record<FileWorkspaceAppearance, FileWorkspaceChromeTheme>;
+  editor: Record<FileWorkspaceAppearance, FileWorkspaceEditorTheme>;
+  id: FileWorkspacePresetName;
+  label: string;
+};
+
 export type ResolvedFileWorkspaceTheme = {
+  appearance: FileWorkspaceAppearance;
   chrome: FileWorkspaceChromeTheme;
   editor: FileWorkspaceEditorTheme;
   id: string;
   label: string;
 };
 
-export type FileWorkspaceTheme = Partial<ResolvedFileWorkspaceTheme> & {
+export type FileWorkspaceSurfaceTheme = {
+  appearance?: FileWorkspaceAppearance;
+  chromeTheme?: Partial<FileWorkspaceChromeTheme>;
+  editorTheme?: Partial<FileWorkspaceEditorTheme>;
+  preset?: FileWorkspacePresetName;
+};
+
+export type LegacyFileWorkspaceTheme = Partial<ResolvedFileWorkspaceTheme> & {
   chrome?: Partial<FileWorkspaceChromeTheme>;
   editor?: Partial<FileWorkspaceEditorTheme>;
   id?: string;
   label?: string;
+  preset?: FileWorkspacePresetName;
 };
 
-export type FileWorkspaceThemeName = string;
+export type FileWorkspaceTheme =
+  | FileWorkspaceSurfaceTheme
+  | LegacyFileWorkspaceTheme;
+
+export type FileWorkspaceThemeName = FileWorkspacePresetName | string;
 
 export type FileWorkspaceProps = {
   adapter: FileWorkspaceAdapter;
+  appearance?: FileWorkspaceAppearance;
   className?: string;
+  chromeTheme?: Partial<FileWorkspaceChromeTheme>;
+  editorTheme?: Partial<FileWorkspaceEditorTheme>;
   onCreateDirectory?: (path: string) => void;
   onCreateFile?: (path: string) => void;
   onDelete?: (path: string) => void;
@@ -127,6 +152,7 @@ export type FileWorkspaceProps = {
   onRename?: (path: string, nextPath: string) => void;
   onSaveFile?: (path: string) => void;
   onWorkspacePathChange?: (path: string) => void;
+  preset?: FileWorkspacePresetName;
   readOnly?: boolean;
   style?: CSSProperties;
   theme?: FileWorkspaceTheme | FileWorkspaceThemeName;

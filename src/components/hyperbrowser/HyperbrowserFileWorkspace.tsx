@@ -57,7 +57,10 @@ export function HyperbrowserFileWorkspace(
   return (
     <FileWorkspace
       adapter={adapter}
+      appearance={props.appearance}
       className={props.className}
+      chromeTheme={props.chromeTheme}
+      editorTheme={props.editorTheme}
       onCreateDirectory={props.onCreateDirectory}
       onCreateFile={props.onCreateFile}
       onDelete={props.onDelete}
@@ -66,6 +69,7 @@ export function HyperbrowserFileWorkspace(
       onRename={props.onRename}
       onSaveFile={props.onSaveFile}
       onWorkspacePathChange={props.onWorkspacePathChange}
+      preset={props.preset}
       readOnly={props.readOnly}
       style={props.style}
       theme={props.theme}

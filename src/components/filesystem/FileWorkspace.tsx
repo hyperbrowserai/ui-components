@@ -28,8 +28,6 @@ function toThemeStyle(
     "--hb-filesystem-row-active": theme.chrome.rowActive,
     "--hb-filesystem-row-hover": theme.chrome.rowHover,
     "--hb-filesystem-shadow": theme.chrome.shadow,
-    "--hb-filesystem-tab-active": theme.chrome.tabActive,
-    "--hb-filesystem-tab-inactive": theme.chrome.tabInactive,
     "--hb-filesystem-text": theme.chrome.text,
     "--hb-filesystem-text-muted": theme.chrome.textMuted,
     "--hb-filesystem-warning": theme.chrome.warning,
@@ -203,16 +201,32 @@ type DirectoryLoadOptions = {
 
 export function FileWorkspace({
   adapter,
+  appearance,
   className,
+  chromeTheme,
+  editorTheme,
   onError,
   onOpenFile,
   onWorkspacePathChange,
+  preset,
   style,
   theme,
   title = "Filesystem Browser",
   workspacePath,
 }: FileWorkspaceProps) {
-  const resolvedTheme = resolveFileWorkspaceTheme(theme);
+  const resolvedTheme = resolveFileWorkspaceTheme(
+    appearance !== undefined ||
+      chromeTheme !== undefined ||
+      editorTheme !== undefined ||
+      preset !== undefined
+      ? {
+          appearance,
+          chromeTheme,
+          editorTheme,
+          preset,
+        }
+      : theme
+  );
   const controlledWorkspacePath =
     workspacePath == null ? null : normalizeFilePath(workspacePath);
   const adapterRef = useRef(adapter);

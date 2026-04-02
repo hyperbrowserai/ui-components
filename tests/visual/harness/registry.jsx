@@ -1,5 +1,5 @@
 import React from "react";
-import * as components from "../../../dist/esm/index.js";
+import * as components from "../../../src/index.ts";
 import { hyperbrowserTerminalScenario } from "../scenarios/hyperbrowser-terminal.scenario.jsx";
 import { hyperbrowserVncViewerScenario } from "../scenarios/hyperbrowser-vnc-viewer.scenario.jsx";
 import { hyperbrowserHlsPlaybackScenario } from "../scenarios/hyperbrowser-hls-playback.scenario.jsx";

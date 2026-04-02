@@ -35,7 +35,7 @@
     "build": "npm run clean && npm run build:esm && npm run build:cjs && npm run build:types && node ./scripts/write-dist-package-jsons.mjs && node ./scripts/copy-static-assets.mjs",
     "prepublishOnly": "npm run build",
     "typecheck": "tsc -p ./tsconfig.base.json --noEmit",
-    "test:visual": "npm run build && vite --config ./tests/visual/vite.config.mjs"
+    "test:visual": "vite --config ./tests/visual/vite.config.mjs"
   },
   "peerDependencies": {
     "react": ">=18 <20",

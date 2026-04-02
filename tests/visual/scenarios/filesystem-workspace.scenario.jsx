@@ -445,9 +445,16 @@ function ControlLabel({ children }) {
 
 function FilesystemWorkspaceDemo({ components }) {
   const adapterRef = React.useRef(null);
-  const [theme, setTheme] = React.useState("atlas");
+  const [preset, setPreset] = React.useState("atlas");
+  const [appearance, setAppearance] = React.useState("light");
   const [workspacePath, setWorkspacePath] = React.useState("/workspace");
   const [eventLog, setEventLog] = React.useState("Ready.");
+  const fileWorkspacePresets =
+    components.fileWorkspacePresets ?? components.fileWorkspaceThemePresets ?? {};
+  const filesystemTheme =
+    typeof components.createFileWorkspaceTheme === "function"
+      ? components.createFileWorkspaceTheme(preset, { appearance })
+      : { appearance, preset };
 
   if (!adapterRef.current) {
     adapterRef.current = createMockFilesystemAdapter();
@@ -469,10 +476,10 @@ function FilesystemWorkspaceDemo({ components }) {
           }}
         >
           <ControlLabel>
-            Theme
+            Preset
             <select
-              value={theme}
-              onChange={(event) => setTheme(event.target.value)}
+              value={preset}
+              onChange={(event) => setPreset(event.target.value)}
               style={{
                 border: "1px solid #cbd5e1",
                 borderRadius: "10px",
@@ -480,13 +487,29 @@ function FilesystemWorkspaceDemo({ components }) {
                 padding: "0.6rem",
               }}
             >
-              {Object.entries(components.fileWorkspaceThemePresets ?? {}).map(
+              {Object.entries(fileWorkspacePresets).map(
                 ([themeName, value]) => (
                   <option key={themeName} value={themeName}>
                     {value.label}
                   </option>
                 ),
               )}
+            </select>
+          </ControlLabel>
+          <ControlLabel>
+            Appearance
+            <select
+              value={appearance}
+              onChange={(event) => setAppearance(event.target.value)}
+              style={{
+                border: "1px solid #cbd5e1",
+                borderRadius: "10px",
+                font: "inherit",
+                padding: "0.6rem",
+              }}
+            >
+              <option value="light">Light</option>
+              <option value="dark">Dark</option>
             </select>
           </ControlLabel>
           <ControlLabel>
@@ -537,7 +560,7 @@ function FilesystemWorkspaceDemo({ components }) {
           setEventLog(`Workspace: ${path}`);
         }}
         style={{ minHeight: "780px" }}
-        theme={theme}
+        {...filesystemTheme}
         title="Filesystem Browser"
         workspacePath={workspacePath}
       />

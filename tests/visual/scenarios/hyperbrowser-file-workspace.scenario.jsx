@@ -55,7 +55,8 @@ function HyperbrowserFileWorkspaceDemo({
   fileWorkspaceThemePresets,
 }) {
   const [mode, setMode] = React.useState("api");
-  const [theme, setTheme] = React.useState("atlas");
+  const [preset, setPreset] = React.useState("atlas");
+  const [appearance, setAppearance] = React.useState("light");
   const [sandboxId, setSandboxId] = React.useState("");
   const [apiBaseUrl, setApiBaseUrl] = React.useState(DEFAULT_API_BASE_URL);
   const [apiToken, setApiToken] = React.useState("");
@@ -95,7 +96,7 @@ function HyperbrowserFileWorkspaceDemo({
     };
   }, [appliedConfig]);
 
-  const themeNames = Object.keys(fileWorkspaceThemePresets ?? {});
+  const presetNames = Object.keys(fileWorkspaceThemePresets ?? {});
   const canLaunch =
     mode === "api"
       ? Boolean(sandboxId.trim() && apiBaseUrl.trim())
@@ -108,13 +109,14 @@ function HyperbrowserFileWorkspaceDemo({
 
     setLatestEvent("Connecting...");
     setAppliedConfig({
+      appearance,
       apiBaseUrl: apiBaseUrl.trim(),
       apiToken: apiToken.trim(),
       bootstrapUrl: bootstrapUrl.trim(),
       mode,
+      preset,
       runtimeBaseUrl: runtimeBaseUrl.trim(),
       sandboxId: sandboxId.trim(),
-      theme,
       workspacePath: workspacePath.trim() || DEFAULT_WORKSPACE_PATH,
     });
     setLaunchCount((value) => value + 1);
@@ -122,7 +124,8 @@ function HyperbrowserFileWorkspaceDemo({
 
   const resetForm = () => {
     setMode("api");
-    setTheme("atlas");
+    setPreset("atlas");
+    setAppearance("light");
     setSandboxId("");
     setApiBaseUrl(DEFAULT_API_BASE_URL);
     setApiToken("");
@@ -156,17 +159,28 @@ function HyperbrowserFileWorkspaceDemo({
             </select>
           </ControlLabel>
           <ControlLabel>
-            Theme
+            Preset
             <select
-              value={theme}
-              onChange={(event) => setTheme(event.target.value)}
+              value={preset}
+              onChange={(event) => setPreset(event.target.value)}
               style={inputStyle}
             >
-              {themeNames.map((themeName) => (
-                <option key={themeName} value={themeName}>
-                  {fileWorkspaceThemePresets[themeName].label}
+              {presetNames.map((presetName) => (
+                <option key={presetName} value={presetName}>
+                  {fileWorkspaceThemePresets[presetName].label}
                 </option>
               ))}
+            </select>
+          </ControlLabel>
+          <ControlLabel>
+            Appearance
+            <select
+              value={appearance}
+              onChange={(event) => setAppearance(event.target.value)}
+              style={inputStyle}
+            >
+              <option value="light">Light</option>
+              <option value="dark">Dark</option>
             </select>
           </ControlLabel>
           <ControlLabel>
@@ -364,6 +378,7 @@ function HyperbrowserFileWorkspaceDemo({
           {
             <HyperbrowserFileWorkspace
               {...activeConfig}
+              appearance={appliedConfig.appearance}
               key={launchCount}
               onError={(message) => setLatestEvent(`Error: ${message}`)}
               onOpenFile={(path) => setLatestEvent(`Opened: ${path}`)}
@@ -373,8 +388,8 @@ function HyperbrowserFileWorkspaceDemo({
                 );
                 setLatestEvent(`Workspace: ${path}`);
               }}
+              preset={appliedConfig.preset}
               style={{ minHeight: "780px" }}
-              theme={appliedConfig.theme}
               title="Hyperbrowser File Browser"
             />
           }
@@ -396,7 +411,8 @@ export const hyperbrowserFileWorkspaceScenario = {
   title: "Hyperbrowser File Workspace",
   render({ components }) {
     const HyperbrowserFileWorkspace = components.HyperbrowserFileWorkspace;
-    const fileWorkspaceThemePresets = components.fileWorkspaceThemePresets;
+    const fileWorkspaceThemePresets =
+      components.fileWorkspacePresets ?? components.fileWorkspaceThemePresets;
 
     if (typeof HyperbrowserFileWorkspace !== "function" || !fileWorkspaceThemePresets) {
       return (

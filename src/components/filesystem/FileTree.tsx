@@ -300,12 +300,6 @@ export function FileTree({
               data-selected={isSelected ? "true" : undefined}
               onClick={() => {
                 onSelectPath(item.entry.path);
-                if (!isDirectory) {
-                  onOpenFile(item.entry.path);
-                }
-              }}
-              onDoubleClick={() => {
-                onSelectPath(item.entry.path);
                 if (isDirectory) {
                   onToggleDirectory(item.entry.path);
                 } else {

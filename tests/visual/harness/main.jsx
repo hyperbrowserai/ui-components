@@ -1,4 +1,7 @@
-import "../../../dist/styles/styles.css";
+import "@xterm/xterm/css/xterm.css";
+import "../../../src/styles/terminal-core.css";
+import "../../../src/styles/terminal.css";
+import "../../../src/styles/filesystem.css";
 import { createRoot } from "react-dom/client";
 import { VisualHarness } from "./registry.jsx";
 
