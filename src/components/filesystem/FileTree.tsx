@@ -1,5 +1,10 @@
 import { useRef, type KeyboardEvent } from "react";
-import { getDirName, isRootPath, normalizeFilePath } from "./filePath";
+import {
+  getDirName,
+  getSymlinkCycleTarget,
+  isRootPath,
+  normalizeFilePath,
+} from "./filePath";
 import type { FileEntry } from "./types";
 
 type FileTreeProps = {
@@ -19,6 +24,13 @@ type VisibleTreeItem = {
   entry: FileEntry;
 };
 
+function getDirectorySymlinkCycleTarget(entry: FileEntry): string | null {
+  if (entry.type !== "directory") {
+    return null;
+  }
+  return getSymlinkCycleTarget(entry.path, entry.symlinkTarget);
+}
+
 function buildVisibleItems(
   directoryChildren: Record<string, FileEntry[]>,
   expandedPaths: Set<string>,
@@ -26,20 +38,31 @@ function buildVisibleItems(
 ): VisibleTreeItem[] {
   const items: VisibleTreeItem[] = [];
 
-  function visit(path: string, depth: number) {
+  function visit(path: string, depth: number, branchPaths: Set<string>) {
+    if (branchPaths.has(path)) {
+      return;
+    }
+    branchPaths.add(path);
+
     const children = directoryChildren[path] ?? [];
     for (const child of children) {
       items.push({
         depth,
         entry: child,
       });
-      if (child.type === "directory" && expandedPaths.has(child.path)) {
-        visit(child.path, depth + 1);
+      if (
+        child.type === "directory" &&
+        !getDirectorySymlinkCycleTarget(child) &&
+        expandedPaths.has(child.path)
+      ) {
+        visit(child.path, depth + 1, branchPaths);
       }
     }
+
+    branchPaths.delete(path);
   }
 
-  visit(rootPath, 0);
+  visit(rootPath, 0, new Set<string>());
   return items;
 }
 
@@ -188,6 +211,10 @@ export function FileTree({
     item: VisibleTreeItem,
     itemIndex: number
   ) {
+    const canExpandDirectory =
+      item.entry.type === "directory" &&
+      !getDirectorySymlinkCycleTarget(item.entry);
+
     switch (event.key) {
       case "ArrowDown": {
         event.preventDefault();
@@ -210,7 +237,7 @@ export function FileTree({
         return;
       }
       case "ArrowRight": {
-        if (item.entry.type !== "directory") {
+        if (!canExpandDirectory) {
           return;
         }
         event.preventDefault();
@@ -229,7 +256,7 @@ export function FileTree({
       case "ArrowLeft": {
         event.preventDefault();
         if (
-          item.entry.type === "directory" &&
+          canExpandDirectory &&
           expandedPathSet.has(item.entry.path) &&
           !isRootPath(item.entry.path)
         ) {
@@ -248,9 +275,9 @@ export function FileTree({
       case " ": {
         event.preventDefault();
         onSelectPath(item.entry.path);
-        if (item.entry.type === "directory") {
+        if (canExpandDirectory) {
           onToggleDirectory(item.entry.path);
-        } else {
+        } else if (item.entry.type !== "directory") {
           onOpenFile(item.entry.path);
         }
       }
@@ -261,7 +288,9 @@ export function FileTree({
     <div aria-label="Filesystem explorer" className="hb-filesystem__tree" role="tree">
       {visibleItems.map((item, itemIndex) => {
         const isDirectory = item.entry.type === "directory";
-        const isExpanded = isDirectory
+        const isCycleDirectory = !!getDirectorySymlinkCycleTarget(item.entry);
+        const canExpandDirectory = isDirectory && !isCycleDirectory;
+        const isExpanded = canExpandDirectory
           ? item.entry.path === "/" || expandedPathSet.has(item.entry.path)
           : false;
         const isLoading = loadingPathSet.has(item.entry.path);
@@ -279,7 +308,7 @@ export function FileTree({
               paddingInlineStart: `${item.depth * 11}px`,
             }}
           >
-            {isDirectory ? (
+            {canExpandDirectory ? (
               <button
                 aria-label={isExpanded ? "Collapse directory" : "Expand directory"}
                 aria-busy={isLoading ? "true" : undefined}
@@ -300,10 +329,12 @@ export function FileTree({
               data-selected={isSelected ? "true" : undefined}
               onClick={() => {
                 onSelectPath(item.entry.path);
-                if (isDirectory) {
+                if (canExpandDirectory) {
                   onToggleDirectory(item.entry.path);
                 } else {
-                  onOpenFile(item.entry.path);
+                  if (!isDirectory) {
+                    onOpenFile(item.entry.path);
+                  }
                 }
               }}
               onKeyDown={(event) => handleKeyDown(event, item, itemIndex)}

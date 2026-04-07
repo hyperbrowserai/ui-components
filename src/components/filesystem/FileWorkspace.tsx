@@ -4,6 +4,7 @@ import { CodeEditorPane } from "./CodeEditorPane";
 import { FileTree } from "./FileTree";
 import { inferLanguageFromPath } from "./fileLanguage";
 import {
+  getSymlinkCycleTarget,
   getAncestorPaths,
   getBaseName,
   getDirName,
@@ -646,6 +647,18 @@ export function FileWorkspace({
 
   async function handleToggleDirectory(path: string) {
     const normalizedPath = normalizeFilePath(path);
+    const directoryEntry = entryIndex[normalizedPath];
+    const cycleTarget =
+      directoryEntry?.type === "directory"
+        ? getSymlinkCycleTarget(directoryEntry.path, directoryEntry.symlinkTarget)
+        : null;
+    if (cycleTarget) {
+      setExpandedPaths((current) =>
+        current.filter((entryPath) => entryPath !== normalizedPath)
+      );
+      return;
+    }
+
     if (normalizedPath === "/") {
       await ensureDirectoryLoaded("/");
       return;
@@ -723,6 +736,25 @@ export function FileWorkspace({
     setIsWorkspacePickerOpen(false);
   }
 
+  const selectedEntry = selectedPath ? entryIndex[selectedPath] ?? null : null;
+  const selectedSymlinkDirectory =
+    selectedEntry &&
+    selectedEntry.type === "directory" &&
+    typeof selectedEntry.symlinkTarget === "string" &&
+    selectedEntry.symlinkTarget.trim() !== ""
+      ? selectedEntry
+      : null;
+  const selectedSymlinkCycleTarget = selectedSymlinkDirectory
+    ? getSymlinkCycleTarget(
+        selectedSymlinkDirectory.path,
+        selectedSymlinkDirectory.symlinkTarget
+      )
+    : null;
+  const showSymlinkDirectoryDetails =
+    selectedSymlinkDirectory !== null &&
+    selectedSymlinkCycleTarget !== null &&
+    activeDocumentPath !== selectedPath;
+  const previewPathBarValue = activeDocument?.path ?? selectedPath;
   const rootClassName = ["hb-filesystem", className].filter(Boolean).join(" ");
 
   return (
@@ -839,10 +871,10 @@ export function FileWorkspace({
         </div>
 
         <div className="hb-filesystem__bodyHeader hb-filesystem__bodyHeader--workspace">
-          {activeDocument ? (
+          {previewPathBarValue ? (
             <>
-              <code className="hb-filesystem__previewPathBar">{activeDocument.path}</code>
-              {activeDocument.kind === "text" ? (
+              <code className="hb-filesystem__previewPathBar">{previewPathBarValue}</code>
+              {activeDocument?.kind === "text" ? (
                 <button
                   aria-label="Copy file contents"
                   className="hb-filesystem__copyButton"
@@ -898,7 +930,21 @@ export function FileWorkspace({
         </aside>
 
         <div className="hb-filesystem__workspace">
-          <CodeEditorPane document={activeDocument} theme={resolvedTheme} />
+          {showSymlinkDirectoryDetails && selectedSymlinkDirectory ? (
+            <div className="hb-filesystem__symlinkShell">
+              <div className="hb-filesystem__symlinkState">
+                <p className="hb-filesystem__previewEyebrow">Symlink Loop</p>
+                <p className="hb-filesystem__symlinkHeadline">
+                  This folder links back to one of its parent folders.
+                </p>
+                <p className="hb-filesystem__symlinkDescription">
+                  {`It resolves to ${selectedSymlinkCycleTarget}. Expanding it here would repeat the same branch, so expansion is disabled.`}
+                </p>
+              </div>
+            </div>
+          ) : (
+            <CodeEditorPane document={activeDocument} theme={resolvedTheme} />
+          )}
         </div>
       </div>
     </section>

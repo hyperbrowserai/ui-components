@@ -81,3 +81,20 @@ export function isPathWithin(basePath: string, candidatePath: string): boolean {
     normalizedCandidatePath.startsWith(`${normalizedBasePath}/`)
   );
 }
+
+export function getSymlinkCycleTarget(
+  path: string,
+  symlinkTarget: string | undefined
+): string | null {
+  if (!symlinkTarget || !symlinkTarget.trim()) {
+    return null;
+  }
+
+  const normalizedPath = normalizeFilePath(path);
+  const normalizedTarget = normalizeFilePath(symlinkTarget);
+  if (!isPathWithin(normalizedTarget, normalizedPath)) {
+    return null;
+  }
+
+  return normalizedTarget;
+}

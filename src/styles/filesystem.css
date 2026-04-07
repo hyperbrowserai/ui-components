@@ -820,6 +820,98 @@
   text-transform: uppercase;
 }
 
+.hb-filesystem__symlinkShell {
+  align-content: center;
+  background:
+    radial-gradient(
+      circle at top,
+      var(--hb-filesystem-accent-glow),
+      transparent 34%
+    ),
+    linear-gradient(
+      180deg,
+      var(--hb-filesystem-surface-muted),
+      var(--hb-filesystem-editor-background)
+    );
+  display: grid;
+  justify-items: center;
+  min-height: 100%;
+  padding: 1.5rem;
+}
+
+.hb-filesystem__symlinkState {
+  align-content: start;
+  background:
+    linear-gradient(
+      180deg,
+      var(--hb-filesystem-panel),
+      var(--hb-filesystem-surface-muted)
+    ),
+    var(--hb-filesystem-panel);
+  border: 1px solid var(--hb-filesystem-border);
+  border-radius: 20px;
+  box-shadow:
+    var(--hb-filesystem-strong-shadow),
+    inset 0 1px 0
+      color-mix(
+        in srgb,
+        var(--hb-filesystem-panel) 76%,
+        var(--hb-filesystem-background) 24%
+      );
+  display: grid;
+  gap: 0.95rem;
+  max-width: 34rem;
+  padding: 1.4rem 1.25rem;
+  width: min(100%, 34rem);
+}
+
+.hb-filesystem__symlinkHeadline {
+  color: var(--hb-filesystem-text);
+  font-size: 0.98rem;
+  font-weight: 650;
+  line-height: 1.35;
+  margin: 0;
+}
+
+.hb-filesystem__symlinkDescription {
+  color: var(--hb-filesystem-text-muted);
+  font-size: 0.89rem;
+  line-height: 1.45;
+  margin: 0;
+}
+
+.hb-filesystem__symlinkMeta {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.hb-filesystem__symlinkMetaRow {
+  background: var(--hb-filesystem-panel);
+  border: 1px solid var(--hb-filesystem-divider);
+  border-radius: 12px;
+  display: grid;
+  gap: 0.32rem;
+  padding: 0.62rem 0.7rem;
+}
+
+.hb-filesystem__symlinkMetaLabel {
+  color: var(--hb-filesystem-text-muted);
+  font-size: 0.73rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.hb-filesystem__symlinkMetaValue {
+  color: var(--hb-filesystem-text);
+  display: block;
+  font-family:
+    "IBM Plex Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 0.8rem;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
 .hb-filesystem__empty {
   align-content: center;
   background: linear-gradient(
@@ -895,6 +987,16 @@
 
   .hb-filesystem__binaryShell {
     padding: 1rem;
+  }
+
+  .hb-filesystem__symlinkShell {
+    padding: 1rem;
+  }
+
+  .hb-filesystem__symlinkState {
+    border-radius: 16px;
+    padding: 1rem;
+    width: min(100%, 100%);
   }
 
   .hb-filesystem__assetFrame {

@@ -18,6 +18,120 @@ const buttonStyle = {
   padding: "0.65rem 0.95rem",
 };
 
+function trimTrailingSlash(value) {
+  return value.replace(/\/+$/, "");
+}
+
+async function getResponseErrorMessage(response, fallbackMessage) {
+  const text = await response.text();
+  if (!text) {
+    return fallbackMessage;
+  }
+
+  try {
+    const payload = JSON.parse(text);
+    if (typeof payload?.message === "string" && payload.message) {
+      return payload.message;
+    }
+    if (typeof payload?.error === "string" && payload.error) {
+      return payload.error;
+    }
+    return fallbackMessage;
+  } catch {
+    return text;
+  }
+}
+
+async function loadRuntimeAccessFromApi({
+  apiBaseUrl,
+  apiHeaders,
+  sandboxId,
+  signal,
+}) {
+  const response = await fetch(
+    `${trimTrailingSlash(apiBaseUrl)}/sandbox/${encodeURIComponent(
+      sandboxId,
+    )}/runtime/browser-auth`,
+    {
+      cache: "no-store",
+      credentials: "include",
+      headers: apiHeaders,
+      method: "POST",
+      signal,
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error(
+      await getResponseErrorMessage(
+        response,
+        `Failed to issue runtime auth (${response.status})`,
+      ),
+    );
+  }
+
+  const runtimeAuth = await response.json();
+  if (typeof runtimeAuth?.bootstrapUrl !== "string" || !runtimeAuth.bootstrapUrl) {
+    throw new Error("Runtime auth response did not include a bootstrapUrl.");
+  }
+
+  const bootstrapResponse = await fetch(runtimeAuth.bootstrapUrl, {
+    cache: "no-store",
+    credentials: "include",
+    method: "GET",
+    signal,
+  });
+
+  if (!bootstrapResponse.ok) {
+    throw new Error(
+      await getResponseErrorMessage(
+        bootstrapResponse,
+        `Failed to prepare runtime (${bootstrapResponse.status})`,
+      ),
+    );
+  }
+
+  const runtimeBaseUrl =
+    (typeof runtimeAuth?.runtime?.baseUrl === "string" &&
+      runtimeAuth.runtime.baseUrl.trim()) ||
+    new URL(runtimeAuth.bootstrapUrl).origin;
+
+  return {
+    expiresAt:
+      typeof runtimeAuth?.bootstrapUrlExpiresAt === "string"
+        ? runtimeAuth.bootstrapUrlExpiresAt
+        : null,
+    runtimeBaseUrl,
+  };
+}
+
+async function loadRuntimeAccessFromBootstrap({
+  bootstrapUrl,
+  runtimeBaseUrl,
+  signal,
+}) {
+  const bootstrapResponse = await fetch(bootstrapUrl, {
+    cache: "no-store",
+    credentials: "include",
+    method: "GET",
+    signal,
+  });
+
+  if (!bootstrapResponse.ok) {
+    throw new Error(
+      await getResponseErrorMessage(
+        bootstrapResponse,
+        `Failed to prepare runtime (${bootstrapResponse.status})`,
+      ),
+    );
+  }
+
+  return {
+    expiresAt: null,
+    runtimeBaseUrl: runtimeBaseUrl || new URL(bootstrapUrl).origin,
+  };
+}
+
 function Card({ children }) {
   return (
     <section
@@ -51,6 +165,7 @@ function ControlLabel({ children }) {
 }
 
 function HyperbrowserFileWorkspaceDemo({
+  HyperbrowserRuntimeProvider,
   HyperbrowserFileWorkspace,
   fileWorkspaceThemePresets,
 }) {
@@ -71,7 +186,7 @@ function HyperbrowserFileWorkspaceDemo({
     setApiBaseUrl(DEFAULT_API_BASE_URL);
   }, []);
 
-  const activeConfig = React.useMemo(() => {
+  const runtimeConfig = React.useMemo(() => {
     if (!appliedConfig) {
       return null;
     }
@@ -84,17 +199,62 @@ function HyperbrowserFileWorkspaceDemo({
               Authorization: `Bearer ${appliedConfig.apiToken}`,
             }
           : undefined,
+        mode: "api",
         sandboxId: appliedConfig.sandboxId,
-        workspacePath: appliedConfig.workspacePath || DEFAULT_WORKSPACE_PATH,
       };
     }
 
+    const runtimeBaseUrl = appliedConfig.runtimeBaseUrl || "";
+    const runtimeSandboxId =
+      runtimeBaseUrl ||
+      (() => {
+        try {
+          return new URL(appliedConfig.bootstrapUrl).origin;
+        } catch {
+          return "direct-runtime";
+        }
+      })();
+
     return {
       bootstrapUrl: appliedConfig.bootstrapUrl,
-      runtimeBaseUrl: appliedConfig.runtimeBaseUrl,
+      mode: "runtime",
+      runtimeBaseUrl,
+      sandboxId: runtimeSandboxId,
+    };
+  }, [appliedConfig]);
+
+  const workspaceConfig = React.useMemo(() => {
+    if (!appliedConfig) {
+      return null;
+    }
+
+    return {
       workspacePath: appliedConfig.workspacePath || DEFAULT_WORKSPACE_PATH,
     };
   }, [appliedConfig]);
+
+  const loadRuntimeAccess = React.useMemo(() => {
+    if (!runtimeConfig) {
+      return null;
+    }
+
+    if (runtimeConfig.mode === "api") {
+      return ({ sandboxId: requestedSandboxId, signal }) =>
+        loadRuntimeAccessFromApi({
+          apiBaseUrl: runtimeConfig.apiBaseUrl,
+          apiHeaders: runtimeConfig.apiHeaders,
+          sandboxId: requestedSandboxId,
+          signal,
+        });
+    }
+
+    return ({ signal }) =>
+      loadRuntimeAccessFromBootstrap({
+        bootstrapUrl: runtimeConfig.bootstrapUrl,
+        runtimeBaseUrl: runtimeConfig.runtimeBaseUrl,
+        signal,
+      });
+  }, [runtimeConfig]);
 
   const presetNames = Object.keys(fileWorkspaceThemePresets ?? {});
   const canLaunch =
@@ -369,15 +529,19 @@ function HyperbrowserFileWorkspaceDemo({
           {`Latest event: ${latestEvent}`}
         </p>
       </Card>
-      {activeConfig ? (
-        <div
-          style={{
-            minHeight: "780px",
-          }}
+      {runtimeConfig && workspaceConfig && loadRuntimeAccess ? (
+        <HyperbrowserRuntimeProvider
+          key={`${runtimeConfig.sandboxId}:${launchCount}`}
+          loadRuntimeAccess={loadRuntimeAccess}
+          sandboxId={runtimeConfig.sandboxId}
         >
-          {
+          <div
+            style={{
+              minHeight: "780px",
+            }}
+          >
             <HyperbrowserFileWorkspace
-              {...activeConfig}
+              {...workspaceConfig}
               appearance={appliedConfig.appearance}
               key={launchCount}
               onError={(message) => setLatestEvent(`Error: ${message}`)}
@@ -392,8 +556,8 @@ function HyperbrowserFileWorkspaceDemo({
               style={{ minHeight: "780px" }}
               title="Hyperbrowser File Browser"
             />
-          }
-        </div>
+          </div>
+        </HyperbrowserRuntimeProvider>
       ) : (
         <Card>
           <p style={{ margin: 0 }}>
@@ -410,11 +574,16 @@ export const hyperbrowserFileWorkspaceScenario = {
   id: "hyperbrowser-file-workspace",
   title: "Hyperbrowser File Workspace",
   render({ components }) {
+    const HyperbrowserRuntimeProvider = components.HyperbrowserRuntimeProvider;
     const HyperbrowserFileWorkspace = components.HyperbrowserFileWorkspace;
     const fileWorkspaceThemePresets =
       components.fileWorkspacePresets ?? components.fileWorkspaceThemePresets;
 
-    if (typeof HyperbrowserFileWorkspace !== "function" || !fileWorkspaceThemePresets) {
+    if (
+      typeof HyperbrowserRuntimeProvider !== "function" ||
+      typeof HyperbrowserFileWorkspace !== "function" ||
+      !fileWorkspaceThemePresets
+    ) {
       return (
         <Card>
           <p style={{ margin: 0 }}>
@@ -427,6 +596,7 @@ export const hyperbrowserFileWorkspaceScenario = {
 
     return (
       <HyperbrowserFileWorkspaceDemo
+        HyperbrowserRuntimeProvider={HyperbrowserRuntimeProvider}
         HyperbrowserFileWorkspace={HyperbrowserFileWorkspace}
         fileWorkspaceThemePresets={fileWorkspaceThemePresets}
       />

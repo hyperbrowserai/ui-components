@@ -7,6 +7,10 @@ function createMockFilesystemAdapter() {
     "/workspace/src",
     "/workspace/src/lib",
     "/workspace/assets",
+    "/proc",
+    "/proc/1",
+    "/proc/1/fd",
+    "/proc/1/cwd",
     "/tmp",
   ]);
 
@@ -127,6 +131,21 @@ function createMockFilesystemAdapter() {
       { name: "assets", path: "/workspace/assets", type: "directory" },
     ],
     ["/tmp", { name: "tmp", path: "/tmp", type: "directory" }],
+    ["/proc", { name: "proc", path: "/proc", type: "directory" }],
+    ["/proc/1", { name: "1", path: "/proc/1", type: "directory" }],
+    [
+      "/proc/1/fd",
+      { name: "fd", path: "/proc/1/fd", type: "directory" },
+    ],
+    [
+      "/proc/1/cwd",
+      {
+        name: "cwd",
+        path: "/proc/1/cwd",
+        symlinkTarget: "/",
+        type: "directory",
+      },
+    ],
     [
       "/workspace/README.md",
       { name: "README.md", path: "/workspace/README.md", type: "file" },
@@ -300,6 +319,15 @@ function createMockFilesystemAdapter() {
     async listDirectory(path) {
       const normalizedPath = normalizePath(path);
       ensureDirectory(normalizedPath);
+
+      // Simulate receiver semantics where symlinked cwd resolves to "/".
+      if (normalizedPath === "/proc/1/cwd") {
+        return {
+          entries: listChildren("/"),
+          path: "/",
+        };
+      }
+
       return {
         entries: listChildren(normalizedPath),
         path: normalizedPath,
@@ -529,6 +557,9 @@ function FilesystemWorkspaceDemo({ components }) {
               }}
             >
               <option value="/">/</option>
+              <option value="/proc">/proc</option>
+              <option value="/proc/1">/proc/1</option>
+              <option value="/proc/1/cwd">/proc/1/cwd</option>
               <option value="/workspace">/workspace</option>
               <option value="/workspace/src">/workspace/src</option>
               <option value="/tmp">/tmp</option>
@@ -547,7 +578,8 @@ function FilesystemWorkspaceDemo({ components }) {
             <span>{eventLog}</span>
             <span>
               Open `large.log`, `logo.png`, and `archive.zip` to exercise text,
-              image, and binary preview states.
+              image, and binary preview states. Expand `/proc/1/cwd` to verify
+              symlink cycle handling and the right-panel symlink details.
             </span>
           </div>
         </div>

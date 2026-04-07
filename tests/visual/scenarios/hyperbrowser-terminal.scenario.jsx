@@ -18,6 +18,120 @@ const buttonStyle = {
   padding: "0.65rem 0.95rem",
 };
 
+function trimTrailingSlash(value) {
+  return value.replace(/\/+$/, "");
+}
+
+async function getResponseErrorMessage(response, fallbackMessage) {
+  const text = await response.text();
+  if (!text) {
+    return fallbackMessage;
+  }
+
+  try {
+    const payload = JSON.parse(text);
+    if (typeof payload?.message === "string" && payload.message) {
+      return payload.message;
+    }
+    if (typeof payload?.error === "string" && payload.error) {
+      return payload.error;
+    }
+    return fallbackMessage;
+  } catch {
+    return text;
+  }
+}
+
+async function loadRuntimeAccessFromApi({
+  apiBaseUrl,
+  apiHeaders,
+  sandboxId,
+  signal,
+}) {
+  const response = await fetch(
+    `${trimTrailingSlash(apiBaseUrl)}/sandbox/${encodeURIComponent(
+      sandboxId,
+    )}/runtime/browser-auth`,
+    {
+      cache: "no-store",
+      credentials: "include",
+      headers: apiHeaders,
+      method: "POST",
+      signal,
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error(
+      await getResponseErrorMessage(
+        response,
+        `Failed to issue runtime auth (${response.status})`,
+      ),
+    );
+  }
+
+  const runtimeAuth = await response.json();
+  if (typeof runtimeAuth?.bootstrapUrl !== "string" || !runtimeAuth.bootstrapUrl) {
+    throw new Error("Runtime auth response did not include a bootstrapUrl.");
+  }
+
+  const bootstrapResponse = await fetch(runtimeAuth.bootstrapUrl, {
+    cache: "no-store",
+    credentials: "include",
+    method: "GET",
+    signal,
+  });
+
+  if (!bootstrapResponse.ok) {
+    throw new Error(
+      await getResponseErrorMessage(
+        bootstrapResponse,
+        `Failed to prepare runtime (${bootstrapResponse.status})`,
+      ),
+    );
+  }
+
+  const runtimeBaseUrl =
+    (typeof runtimeAuth?.runtime?.baseUrl === "string" &&
+      runtimeAuth.runtime.baseUrl.trim()) ||
+    new URL(runtimeAuth.bootstrapUrl).origin;
+
+  return {
+    expiresAt:
+      typeof runtimeAuth?.bootstrapUrlExpiresAt === "string"
+        ? runtimeAuth.bootstrapUrlExpiresAt
+        : null,
+    runtimeBaseUrl,
+  };
+}
+
+async function loadRuntimeAccessFromBootstrap({
+  bootstrapUrl,
+  runtimeBaseUrl,
+  signal,
+}) {
+  const bootstrapResponse = await fetch(bootstrapUrl, {
+    cache: "no-store",
+    credentials: "include",
+    method: "GET",
+    signal,
+  });
+
+  if (!bootstrapResponse.ok) {
+    throw new Error(
+      await getResponseErrorMessage(
+        bootstrapResponse,
+        `Failed to prepare runtime (${bootstrapResponse.status})`,
+      ),
+    );
+  }
+
+  return {
+    expiresAt: null,
+    runtimeBaseUrl: runtimeBaseUrl || new URL(bootstrapUrl).origin,
+  };
+}
+
 function Card({ children }) {
   return (
     <section
@@ -54,10 +168,15 @@ function HyperbrowserCustomShell({
   appearance,
   connectionOptions,
   preset,
+  useHyperbrowserRuntime,
   useSandboxTerminalConnection,
   useTerminal,
 }) {
-  const connection = useSandboxTerminalConnection(connectionOptions);
+  const { ensureRuntimeAccess } = useHyperbrowserRuntime();
+  const connection = useSandboxTerminalConnection({
+    ...connectionOptions,
+    getRuntimeAccess: ensureRuntimeAccess,
+  });
   const shell =
     appearance === "dark"
       ? {
@@ -183,8 +302,10 @@ function HyperbrowserCustomShell({
 }
 
 function HyperbrowserTerminalDemo({
+  HyperbrowserRuntimeProvider,
   HyperbrowserTerminal,
   terminalPresets,
+  useHyperbrowserRuntime,
   useSandboxTerminalConnection,
   useTerminal,
 }) {
@@ -206,7 +327,7 @@ function HyperbrowserTerminalDemo({
     setApiBaseUrl(DEFAULT_API_BASE_URL);
   }, []);
 
-  const activeConfig = React.useMemo(() => {
+  const runtimeConfig = React.useMemo(() => {
     if (!appliedConfig) {
       return null;
     }
@@ -219,20 +340,61 @@ function HyperbrowserTerminalDemo({
               Authorization: `Bearer ${appliedConfig.apiToken}`,
             }
           : undefined,
-        closeBehavior: appliedConfig.closeBehavior,
-        command: appliedConfig.command,
-        cwd: appliedConfig.cwd || undefined,
+        mode: "api",
         sandboxId: appliedConfig.sandboxId,
       };
     }
 
+    const runtimeBaseUrl = (() => {
+      try {
+        return new URL(appliedConfig.bootstrapUrl).origin;
+      } catch {
+        return "";
+      }
+    })();
+
     return {
       bootstrapUrl: appliedConfig.bootstrapUrl,
+      mode: "runtime",
+      runtimeBaseUrl,
+      sandboxId: runtimeBaseUrl || "direct-runtime",
+    };
+  }, [appliedConfig]);
+
+  const terminalConfig = React.useMemo(() => {
+    if (!appliedConfig) {
+      return null;
+    }
+
+    return {
       closeBehavior: appliedConfig.closeBehavior,
       command: appliedConfig.command,
       cwd: appliedConfig.cwd || undefined,
     };
   }, [appliedConfig]);
+
+  const loadRuntimeAccess = React.useMemo(() => {
+    if (!runtimeConfig) {
+      return null;
+    }
+
+    if (runtimeConfig.mode === "api") {
+      return ({ sandboxId: requestedSandboxId, signal }) =>
+        loadRuntimeAccessFromApi({
+          apiBaseUrl: runtimeConfig.apiBaseUrl,
+          apiHeaders: runtimeConfig.apiHeaders,
+          sandboxId: requestedSandboxId,
+          signal,
+        });
+    }
+
+    return ({ signal }) =>
+      loadRuntimeAccessFromBootstrap({
+        bootstrapUrl: runtimeConfig.bootstrapUrl,
+        runtimeBaseUrl: runtimeConfig.runtimeBaseUrl,
+        signal,
+      });
+  }, [runtimeConfig]);
 
   const presetNames = Object.keys(terminalPresets ?? {});
   const canLaunch =
@@ -486,8 +648,8 @@ function HyperbrowserTerminalDemo({
             Reset form
           </button>
           <span style={{ color: "#334155", fontSize: "0.92rem" }}>
-            API mode calls `/sandbox/:id/runtime/browser-auth` directly. Runtime
-            mode only needs a precomputed bootstrap URL.
+            API mode calls `/sandbox/:id/runtime/browser-auth`, then bootstraps
+            runtime auth. Runtime mode only needs a bootstrap URL.
           </span>
         </div>
         <div
@@ -528,44 +690,51 @@ function HyperbrowserTerminalDemo({
           {`Latest event: ${latestEvent}`}
         </p>
       </Card>
-      {activeConfig ? (
-        <div
-          style={{
-            display: "grid",
-            gap: "1rem",
-            gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))",
-          }}
+      {runtimeConfig && terminalConfig && loadRuntimeAccess ? (
+        <HyperbrowserRuntimeProvider
+          key={`${runtimeConfig.sandboxId}:${launchCount}`}
+          loadRuntimeAccess={loadRuntimeAccess}
+          sandboxId={runtimeConfig.sandboxId}
         >
-          <div style={{ minHeight: "580px" }}>
-            <HyperbrowserTerminal
-              {...activeConfig}
+          <div
+            style={{
+              display: "grid",
+              gap: "1rem",
+              gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))",
+            }}
+          >
+            <div style={{ minHeight: "580px" }}>
+              <HyperbrowserTerminal
+                {...terminalConfig}
+                appearance={appliedConfig.appearance}
+                autoFocus={false}
+                key={`${launchCount}:${appliedConfig.preset}:${appliedConfig.appearance}:turnkey`}
+                onConnectionError={(message) =>
+                  setLatestEvent(`Turnkey connection error: ${message}`)
+                }
+                onExit={(event) =>
+                  setLatestEvent(
+                    event.error
+                      ? `Turnkey exited with error: ${event.error}`
+                      : `Turnkey exited with code ${event.exitCode ?? 0}`,
+                  )
+                }
+                preset={appliedConfig.preset}
+                style={{ height: "100%" }}
+                title="Hyperbrowser PTY Terminal"
+              />
+            </div>
+            <HyperbrowserCustomShell
               appearance={appliedConfig.appearance}
-              autoFocus={false}
-              key={`${launchCount}:${appliedConfig.preset}:${appliedConfig.appearance}:turnkey`}
-              onConnectionError={(message) =>
-                setLatestEvent(`Turnkey connection error: ${message}`)
-              }
-              onExit={(event) =>
-                setLatestEvent(
-                  event.error
-                    ? `Turnkey exited with error: ${event.error}`
-                    : `Turnkey exited with code ${event.exitCode ?? 0}`,
-                )
-              }
+              connectionOptions={terminalConfig}
+              key={`${launchCount}:${appliedConfig.preset}:${appliedConfig.appearance}:custom`}
               preset={appliedConfig.preset}
-              style={{ height: "100%" }}
-              title="Hyperbrowser PTY Terminal"
+              useHyperbrowserRuntime={useHyperbrowserRuntime}
+              useSandboxTerminalConnection={useSandboxTerminalConnection}
+              useTerminal={useTerminal}
             />
           </div>
-          <HyperbrowserCustomShell
-            appearance={appliedConfig.appearance}
-            connectionOptions={activeConfig}
-            key={`${launchCount}:${appliedConfig.preset}:${appliedConfig.appearance}:custom`}
-            preset={appliedConfig.preset}
-            useSandboxTerminalConnection={useSandboxTerminalConnection}
-            useTerminal={useTerminal}
-          />
-        </div>
+        </HyperbrowserRuntimeProvider>
       ) : (
         <Card>
           <p style={{ margin: 0 }}>
@@ -582,14 +751,18 @@ export const hyperbrowserTerminalScenario = {
   id: "hyperbrowser-terminal",
   title: "Hyperbrowser Terminal",
   render({ components }) {
+    const HyperbrowserRuntimeProvider = components.HyperbrowserRuntimeProvider;
     const HyperbrowserTerminal = components.HyperbrowserTerminal;
     const terminalPresets = components.terminalPresets;
+    const useHyperbrowserRuntime = components.useHyperbrowserRuntime;
     const useSandboxTerminalConnection =
       components.useSandboxTerminalConnection;
     const useTerminal = components.useTerminal;
 
     if (
+      typeof HyperbrowserRuntimeProvider !== "function" ||
       typeof HyperbrowserTerminal !== "function" ||
+      typeof useHyperbrowserRuntime !== "function" ||
       typeof useSandboxTerminalConnection !== "function" ||
       typeof useTerminal !== "function" ||
       !terminalPresets
@@ -606,8 +779,10 @@ export const hyperbrowserTerminalScenario = {
 
     return (
       <HyperbrowserTerminalDemo
+        HyperbrowserRuntimeProvider={HyperbrowserRuntimeProvider}
         HyperbrowserTerminal={HyperbrowserTerminal}
         terminalPresets={terminalPresets}
+        useHyperbrowserRuntime={useHyperbrowserRuntime}
         useSandboxTerminalConnection={useSandboxTerminalConnection}
         useTerminal={useTerminal}
       />
