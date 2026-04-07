@@ -100,6 +100,47 @@ function CheckIcon() {
   );
 }
 
+function RefreshIcon({ spinning }: { spinning?: boolean }) {
+  return (
+    <svg
+      aria-hidden="true"
+      className="hb-filesystem__refreshIcon"
+      data-spinning={spinning ? "true" : undefined}
+      viewBox="0 0 16 16"
+      fill="none"
+    >
+      <path
+        d="M13 6.5A5 5 0 0 0 4.5 3.4L3.25 4.5"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.4"
+      />
+      <path
+        d="M3.25 2.5v2h2"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.4"
+      />
+      <path
+        d="M3 9.5A5 5 0 0 0 11.5 12.6l1.25-1.1"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.4"
+      />
+      <path
+        d="M12.75 13.5v-2h-2"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.4"
+      />
+    </svg>
+  );
+}
+
 type WorkspacePickerOption = {
   isParent?: boolean;
   path: string;
@@ -235,6 +276,7 @@ export function FileWorkspace({
   const workspacePickerRef = useRef<HTMLDivElement | null>(null);
   const workspacePickerRequestRef = useRef(0);
   const documentRequestRef = useRef(0);
+  const refreshRequestRef = useRef(0);
   const copyResetTimeoutRef = useRef<number | null>(null);
   const activeDocumentRef = useRef<FilePreview | null>(null);
   const activeDocumentPathRef = useRef<string | null>(null);
@@ -252,6 +294,7 @@ export function FileWorkspace({
   const [activeDocument, setActiveDocument] = useState<FilePreview | null>(null);
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [copyState, setCopyState] = useState<"idle" | "copied">("idle");
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [uncontrolledWorkspacePath, setUncontrolledWorkspacePath] = useState(
     controlledWorkspacePath ?? "/"
   );
@@ -531,12 +574,14 @@ export function FileWorkspace({
 
     workspacePickerRequestRef.current += 1;
     documentRequestRef.current += 1;
+    refreshRequestRef.current += 1;
     setWorkspaceDraftPath(toDirectoryInputValue(resolvedWorkspacePath));
     setWorkspaceBrowserPath(resolvedWorkspacePath);
     setWorkspacePickerError(null);
     setWorkspacePickerLoading(false);
     setWorkspacePickerOptions([]);
     setIsWorkspacePickerOpen(false);
+    setIsRefreshing(false);
 
     async function initializeWorkspace() {
       try {
@@ -736,6 +781,36 @@ export function FileWorkspace({
     setIsWorkspacePickerOpen(false);
   }
 
+  async function refreshWorkspace() {
+    const requestId = ++refreshRequestRef.current;
+    setIsRefreshing(true);
+
+    try {
+      const visibleDirectoryPaths = Array.from(
+        new Set([
+          resolvedWorkspacePath,
+          ...expandedPaths.filter((path) => isPathWithin(resolvedWorkspacePath, path)),
+        ])
+      );
+
+      for (const path of visibleDirectoryPaths) {
+        await loadDirectory(path);
+        if (requestId !== refreshRequestRef.current || !mountedRef.current) {
+          return;
+        }
+      }
+
+      const openDocumentPath = activeDocumentPathRef.current;
+      if (openDocumentPath && isPathWithin(resolvedWorkspacePath, openDocumentPath)) {
+        await loadDocument(openDocumentPath, { force: true });
+      }
+    } finally {
+      if (requestId === refreshRequestRef.current && mountedRef.current) {
+        setIsRefreshing(false);
+      }
+    }
+  }
+
   const selectedEntry = selectedPath ? entryIndex[selectedPath] ?? null : null;
   const selectedSymlinkDirectory =
     selectedEntry &&
@@ -868,6 +943,18 @@ export function FileWorkspace({
               </div>
             ) : null}
           </div>
+          <button
+            aria-label="Refresh filesystem"
+            className="hb-filesystem__refreshButton"
+            disabled={isRefreshing}
+            onClick={() => {
+              void refreshWorkspace();
+            }}
+            title={isRefreshing ? "Refreshing" : "Refresh filesystem"}
+            type="button"
+          >
+            <RefreshIcon spinning={isRefreshing} />
+          </button>
         </div>
 
         <div className="hb-filesystem__bodyHeader hb-filesystem__bodyHeader--workspace">

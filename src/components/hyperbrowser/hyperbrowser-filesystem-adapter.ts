@@ -143,15 +143,9 @@ function toPreview(
   const kind = parsePreviewKind(preview.kind);
 
   if (kind === "text") {
-    if (typeof preview.content !== "string") {
-      throw new HyperbrowserRequestError(
-        `Text preview for ${normalizedPath} did not include content.`,
-      );
-    }
-
     return {
       contentType: preview.contentType,
-      contents: preview.content,
+      contents: typeof preview.content === "string" ? preview.content : "",
       encoding: preview.encoding,
       kind,
       language: inferLanguageFromPath(normalizedPath),

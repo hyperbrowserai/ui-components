@@ -212,6 +212,48 @@
   position: relative;
 }
 
+.hb-filesystem__refreshButton {
+  align-items: center;
+  background: var(--hb-filesystem-panel);
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: var(--hb-filesystem-text-muted);
+  cursor: pointer;
+  display: inline-flex;
+  flex: 0 0 auto;
+  height: 2rem;
+  justify-content: center;
+  margin-left: 0.45rem;
+  padding: 0;
+  transition:
+    background 140ms ease,
+    border-color 140ms ease,
+    color 140ms ease;
+  width: 2rem;
+}
+
+.hb-filesystem__refreshButton:hover,
+.hb-filesystem__refreshButton:focus-visible {
+  background: var(--hb-filesystem-row-hover);
+  border-color: var(--hb-filesystem-accent-border);
+  color: var(--hb-filesystem-text);
+  outline: none;
+}
+
+.hb-filesystem__refreshButton:disabled {
+  cursor: progress;
+}
+
+.hb-filesystem__refreshIcon {
+  display: block;
+  height: 0.95rem;
+  width: 0.95rem;
+}
+
+.hb-filesystem__refreshIcon[data-spinning="true"] {
+  animation: hb-filesystem-refresh-spin 900ms linear infinite;
+}
+
 .hb-filesystem__workspaceTrigger {
   align-items: center;
   background: var(--hb-filesystem-panel);
@@ -665,6 +707,16 @@
   display: block;
   height: 0.95rem;
   width: 0.95rem;
+}
+
+@keyframes hb-filesystem-refresh-spin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .hb-filesystem__editorBanner {
