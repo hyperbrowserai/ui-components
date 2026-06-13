@@ -335,23 +335,24 @@ You can create a reusable spreadable config with `createFileWorkspaceTheme(...)`
 
 ## VNC component usage
 
-`HyperbrowserVncViewer` renders a noVNC viewer using a Hyperbrowser session token and
-connect base URL.
+`HyperbrowserVncViewer` renders a noVNC viewer using a Hyperbrowser browser
+token plus the live transport base URL.
 
 ```tsx
 import { HyperbrowserVncViewer } from "@hyperbrowser/ui";
 
-export function SessionLiveView({
-  token,
-  connectUrl,
-}: {
+type BrowserSession = {
   token: string;
-  connectUrl: string;
-}) {
+  liveDomain: string;
+  computerActionEndpoint?: string;
+};
+
+export function SessionLiveView({ session }: { session: BrowserSession }) {
   return (
     <HyperbrowserVncViewer
-      token={token}
-      connectUrl={connectUrl}
+      token={session.token}
+      connectUrl={session.liveDomain}
+      computerActionEndpoint={session.computerActionEndpoint}
       height={560}
       rewriteCmdAsCtrl
       useComputerActionClipboard
@@ -365,7 +366,37 @@ export function SessionLiveView({
 
 Notes:
 
-- Required props: `token`, `connectUrl`.
+- Required connection props: `token` and `connectUrl`.
+- For session creation responses, pass `session.token` as `token` and
+  `session.liveDomain` as `connectUrl`.
+- Do not pass `session.liveUrl` as `connectUrl` for standard browser sessions.
+  Standard `liveUrl` values point at the frontend `/live` page, not the
+  session-proxy transport. The component rejects that `/live` route to avoid
+  constructing websocket URLs on the frontend origin.
+- `connectUrl` should be the live transport base, including any proxy path
+  prefix. For example, pass
+  `https://dp-...hxproxy.io/browser/<sessionId>/live/` when a regional live
+  transport lives under that prefix. A full regional noVNC URL such as
+  `.../vnc.html?path=/browser/<sessionId>/live/` is also accepted; the `path`
+  query value is used as the live prefix.
+- For regional-proxy origins without a path prefix, the component derives
+  `/browser/<sessionId>/live/` from the JWT `sessionId` claim. Older
+  session-proxy URLs keep the legacy root paths, such as `/websockify` and
+  `/computer-action`.
+- Regional-proxy VNC websockets connect to the live prefix itself, for example
+  `wss://dp-...hxproxy.io/browser/<sessionId>/live/?token=...`; the component
+  does not append `/websockify` for regional-proxy tokens.
+- Regional-proxy websocket query parameters are treated as routing and auth
+  only. VNC behavior such as autoconnect, view-only, scaling, clipping, and
+  remote resize is applied through the wrapped VNC client props.
+- `computerActionEndpoint` is optional. If provided, it is used for clipboard
+  computer actions. If it includes its own `token` query parameter, that token
+  must be scoped for computer actions. If it does not include a token, the live
+  token is appended and must also be scoped for computer actions.
+- Token checks are explicit. `aud: "regional-proxy"` requires `browser-live`
+  for VNC and `browser-computer-action` for computer-action clipboard. `aud:
+  "session-proxy"` requires `view` for VNC and `computer-action` for
+  computer-action clipboard.
 - `rewriteCmdAsCtrl` remaps macOS command shortcuts to control for the remote session.
 - `useComputerActionClipboard` routes copy/paste through computer actions.
 - `disableFocusOnConnect` can be used to prevent automatic VNC keyboard focus.
@@ -410,13 +441,25 @@ export function SessionVideo({
 
 Notes:
 
-- HLS mode requires both `sessionId` and `sessionToken`.
+- HLS mode requires a session id plus a bearer token. You can pass those as
+  `sessionId` and `sessionToken`. For session creation responses, use
+  `session.id` and `session.token`.
 - HLS mode does not require an explicit playlist URL.
 - The hook rewrites requests to:
 `https://api.hyperbrowser.ai/api/session/{sessionId}/video-playlist.m3u8`
 and
 `https://api.hyperbrowser.ai/api/session/{sessionId}/video-segment/{assetName}`.
-- Requests use `Authorization: Bearer <sessionToken>` and omit credential cookies.
+- Requests made by the hook use `Authorization: Bearer <sessionToken>` and omit
+  credential cookies. The server playback routes also accept the same token as
+  a `token` query parameter for direct/manual playlist or segment requests.
+- Standard browser playback tokens use `aud: "session-proxy"` with the `view`
+  scope. Firecracker browser playback tokens use `aud: "regional-proxy"` with
+  the `browser-live` scope. No additional Firecracker-specific permission is
+  required.
+- For manual Firecracker playlist checks, use either:
+  `GET /api/session/{sessionId}/video-playlist.m3u8` with
+  `Authorization: Bearer <session token>` or
+  `GET /api/session/{sessionId}/video-playlist.m3u8?token=<session token>`.
 - `source` is optional and only needed for non-HLS (for example MP4 playback).
 
 ## Publishing behavior

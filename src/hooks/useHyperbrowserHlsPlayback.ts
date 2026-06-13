@@ -12,6 +12,8 @@ const VIDEO_ASSET_NAME_MAX_LENGTH = 128;
 const VIDEO_ASSET_NAME_PATTERN = /^[A-Za-z0-9._-]+$/;
 const REWRITTEN_SEGMENT_PATH_PATTERN =
   /^\/api\/session\/[^/]+\/video-segment\/[^/?#]+$/i;
+const API_SESSION_VIDEO_PATH_PATTERN =
+  /^\/api\/session\/([^/]+)\/video-(?:playlist\.m3u8|segment\/[^/?#]+)$/i;
 
 export type HyperbrowserVideoSourceType = "auto" | "hls" | "mp4";
 
@@ -27,6 +29,12 @@ export type UseHyperbrowserHlsPlaybackParams = {
   onVideoError?: (error?: unknown) => void;
   onFatalHlsError?: (data: unknown) => void;
   onUnsupportedHls?: () => void;
+};
+
+type PlaybackInput = {
+  sessionId: string | null;
+  sessionToken: string | null;
+  error: string | null;
 };
 
 export type UseHyperbrowserHlsPlaybackResult = {
@@ -67,6 +75,58 @@ function getRequestPathname(requestUrl: string): string {
   } catch {
     return trimmed.split("?")[0]?.split("#")[0] ?? "";
   }
+}
+
+function extractSessionIdFromPlaybackSource(source: string | null): string | null {
+  if (!source) {
+    return null;
+  }
+
+  const pathname = getRequestPathname(source);
+  const match = pathname.match(API_SESSION_VIDEO_PATH_PATTERN);
+  if (!match?.[1]) {
+    return null;
+  }
+
+  try {
+    return decodeURIComponent(match[1]);
+  } catch {
+    return match[1];
+  }
+}
+
+function resolvePlaybackInput({
+  source,
+  sessionId,
+  sessionToken,
+}: {
+  source: string | null;
+  sessionId?: string;
+  sessionToken?: string;
+}): PlaybackInput {
+  const explicitSessionId = sessionId?.trim() ?? "";
+  const explicitSessionToken = sessionToken?.trim() ?? "";
+  const sourceSessionId = extractSessionIdFromPlaybackSource(source);
+  const resolvedSessionId = explicitSessionId || sourceSessionId || null;
+  const resolvedSessionToken = explicitSessionToken || null;
+
+  if (
+    explicitSessionId &&
+    sourceSessionId &&
+    explicitSessionId !== sourceSessionId
+  ) {
+    return {
+      sessionId: resolvedSessionId,
+      sessionToken: resolvedSessionToken,
+      error: "source URL sessionId does not match sessionId.",
+    };
+  }
+
+  return {
+    sessionId: resolvedSessionId,
+    sessionToken: resolvedSessionToken,
+    error: null,
+  };
 }
 
 function extractVideoAssetNameFromRequestUrl(requestUrl: string): string | null {
@@ -138,7 +198,7 @@ function buildRewrittenPlaylistUrl(sessionId: string, apiBaseUrl: string): strin
 function resolveSourceType(
   source: string | null,
   sourceType: HyperbrowserVideoSourceType,
-  sessionId: string | undefined
+  sessionId: string | null
 ): "hls" | "mp4" {
   if (sourceType === "hls" || sourceType === "mp4") {
     return sourceType;
@@ -180,10 +240,20 @@ export function useHyperbrowserHlsPlayback({
     UseHyperbrowserHlsPlaybackParams["onUnsupportedHls"]
   >(onUnsupportedHls);
   const trimmedSource = source?.trim() ?? null;
+  const playbackInput = useMemo(
+    () =>
+      resolvePlaybackInput({
+        source: trimmedSource,
+        sessionId,
+        sessionToken,
+      }),
+    [sessionId, sessionToken, trimmedSource]
+  );
 
   const resolvedMode = useMemo(
-    () => resolveSourceType(trimmedSource, sourceType, sessionId),
-    [trimmedSource, sessionId, sourceType]
+    () =>
+      resolveSourceType(trimmedSource, sourceType, playbackInput.sessionId),
+    [trimmedSource, playbackInput.sessionId, sourceType]
   );
   const isHlsSource = resolvedMode === "hls";
 
@@ -220,8 +290,8 @@ export function useHyperbrowserHlsPlayback({
     }
 
     let isCancelled = false;
-    const trimmedSessionId = sessionId?.trim() ?? "";
-    const trimmedSessionToken = sessionToken?.trim() ?? "";
+    const trimmedSessionId = playbackInput.sessionId ?? "";
+    const trimmedSessionToken = playbackInput.sessionToken ?? "";
     const handleLoaded = () => {
       onLoadedDataRef.current?.();
     };
@@ -246,6 +316,11 @@ export function useHyperbrowserHlsPlayback({
           return;
         }
         video.src = trimmedSource;
+        return;
+      }
+
+      if (playbackInput.error) {
+        failEarly(playbackInput.error);
         return;
       }
 
@@ -359,6 +434,9 @@ export function useHyperbrowserHlsPlayback({
   }, [
     apiBaseUrl,
     sessionToken,
+    playbackInput.error,
+    playbackInput.sessionId,
+    playbackInput.sessionToken,
     destroyHls,
     enabled,
     isHlsSource,

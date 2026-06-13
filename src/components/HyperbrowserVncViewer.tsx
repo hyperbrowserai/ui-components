@@ -14,6 +14,39 @@ const DEFAULT_TARGET = "vnc";
 const DEFAULT_HEIGHT_PX = 560;
 const DEFAULT_RETRY_DURATION = 2000;
 const APPLE_PLATFORM_PATTERN = /(Mac|iPhone|iPad|iPod)/i;
+const REGIONAL_PROXY_AUDIENCE = "regional-proxy";
+const SESSION_PROXY_AUDIENCE = "session-proxy";
+const REGIONAL_PROXY_LIVE_SCOPE = "browser-live";
+const REGIONAL_PROXY_COMPUTER_ACTION_SCOPE = "browser-computer-action";
+const SESSION_PROXY_LIVE_SCOPE = "view";
+const SESSION_PROXY_COMPUTER_ACTION_SCOPE = "computer-action";
+
+type TokenAudience =
+  | typeof REGIONAL_PROXY_AUDIENCE
+  | typeof SESSION_PROXY_AUDIENCE;
+
+type BrowserTokenClaims = {
+  audience: TokenAudience;
+  sessionId: string | null;
+  scopes: Set<string>;
+};
+
+type VncConnectionInput = {
+  token?: string;
+  connectUrl?: string;
+};
+
+type ComputerActionConnectionInput = VncConnectionInput & {
+  computerActionEndpoint?: string;
+};
+
+type VncClientConfig = {
+  autoConnect: boolean;
+  clipViewport: boolean;
+  dragViewport: boolean;
+  resizeSession: boolean;
+  scaleViewport: boolean;
+};
 
 type InternalRfbKeyboardController = {
   _keyboard?: {
@@ -21,6 +54,9 @@ type InternalRfbKeyboardController = {
     ungrab: () => void;
   };
   _canvas?: HTMLCanvasElement | null;
+  _screen?: HTMLDivElement | null;
+  _updateClip?: () => void;
+  _updateScale?: () => void;
 };
 
 type RewrittenKeyState = {
@@ -29,9 +65,13 @@ type RewrittenKeyState = {
   location: number;
 };
 
-export type HyperbrowserVncViewerProps = {
+type HyperbrowserVncViewerConnectionProps = {
   token: string;
   connectUrl: string;
+  computerActionEndpoint?: string;
+};
+
+type HyperbrowserVncViewerDisplayProps = {
   disableFocusOnConnect?: boolean;
   rewriteCmdAsCtrl?: boolean;
   useComputerActionClipboard?: boolean;
@@ -46,10 +86,17 @@ export type HyperbrowserVncViewerProps = {
   onConnectionError?: (message: string) => void;
 };
 
-function normalizeToUrl(rawValue: string): URL {
+export type HyperbrowserVncViewerProps =
+  HyperbrowserVncViewerConnectionProps & HyperbrowserVncViewerDisplayProps;
+
+function normalizeToUrl(
+  rawValue: string,
+  label: string = "connectUrl",
+  allowedProtocols: Set<string> = new Set(["http:", "https:", "ws:", "wss:"])
+): URL {
   const value = rawValue.trim();
   if (!value) {
-    throw new Error("Expected connectUrl to be a non-empty string.");
+    throw new Error(`Expected ${label} to be a non-empty string.`);
   }
 
   const withProtocol = /^[a-zA-Z][a-zA-Z\d+\-.]*:\/\//.test(value)
@@ -57,18 +104,270 @@ function normalizeToUrl(rawValue: string): URL {
     : `https://${value}`;
 
   const parsed = new URL(withProtocol);
-  const allowedProtocols = new Set(["http:", "https:", "ws:", "wss:"]);
   if (!allowedProtocols.has(parsed.protocol)) {
-    throw new Error(`Unsupported connectUrl protocol: ${parsed.protocol}`);
+    throw new Error(`Unsupported ${label} protocol: ${parsed.protocol}`);
   }
 
   return parsed;
 }
 
-function toWebSocketOrigin(url: URL): string {
+function decodeBase64Url(value: string): string | null {
+  const base64 = value.replace(/-/g, "+").replace(/_/g, "/");
+  const padded = base64.padEnd(
+    base64.length + ((4 - (base64.length % 4)) % 4),
+    "="
+  );
+
+  try {
+    if (typeof globalThis.atob === "function") {
+      return globalThis.atob(padded);
+    }
+
+    const maybeBuffer = (
+      globalThis as typeof globalThis & {
+        Buffer?: {
+          from: (
+            value: string,
+            encoding: "base64"
+          ) => { toString: (encoding: "utf-8") => string };
+        };
+      }
+    ).Buffer;
+    if (maybeBuffer) {
+      return maybeBuffer.from(padded, "base64").toString("utf-8");
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+}
+
+function tokenAudiencesInclude(audience: unknown, expected: TokenAudience) {
+  return typeof audience === "string"
+    ? audience === expected
+    : Array.isArray(audience) && audience.includes(expected);
+}
+
+function resolveTokenAudience(audience: unknown): TokenAudience {
+  const matches: TokenAudience[] = [];
+  if (tokenAudiencesInclude(audience, REGIONAL_PROXY_AUDIENCE)) {
+    matches.push(REGIONAL_PROXY_AUDIENCE);
+  }
+  if (tokenAudiencesInclude(audience, SESSION_PROXY_AUDIENCE)) {
+    matches.push(SESSION_PROXY_AUDIENCE);
+  }
+
+  if (matches.length === 1) {
+    return matches[0];
+  }
+
+  if (matches.length > 1) {
+    throw new Error(
+      `Browser token audience must be exactly one of "${REGIONAL_PROXY_AUDIENCE}" or "${SESSION_PROXY_AUDIENCE}".`
+    );
+  }
+
+  throw new Error(
+    `Browser token audience must be "${REGIONAL_PROXY_AUDIENCE}" or "${SESSION_PROXY_AUDIENCE}".`
+  );
+}
+
+function parseTokenScopes(scope: unknown): Set<string> {
+  if (typeof scope === "string") {
+    return new Set(scope.split(/\s+/).filter(Boolean));
+  }
+
+  if (Array.isArray(scope)) {
+    return new Set(
+      scope.filter((value): value is string => typeof value === "string")
+    );
+  }
+
+  return new Set();
+}
+
+function parseBrowserTokenClaims(token: string): BrowserTokenClaims {
+  const [, encodedPayload] = token.split(".");
+  if (!encodedPayload) {
+    throw new Error("Expected token to be a JWT with a payload.");
+  }
+
+  const decodedPayload = decodeBase64Url(encodedPayload);
+  if (!decodedPayload) {
+    throw new Error("Unable to decode token payload.");
+  }
+
+  let payload: {
+    aud?: unknown;
+    sessionId?: unknown;
+    scope?: unknown;
+  };
+
+  try {
+    payload = JSON.parse(decodedPayload) as typeof payload;
+  } catch {
+    throw new Error("Unable to parse token payload.");
+  }
+
+  const sessionId =
+    typeof payload.sessionId === "string" ? payload.sessionId.trim() : "";
+
+  return {
+    audience: resolveTokenAudience(payload.aud),
+    sessionId: sessionId || null,
+    scopes: parseTokenScopes(payload.scope),
+  };
+}
+
+function assertTokenScopes(
+  claims: BrowserTokenClaims,
+  requiredScopes: string[],
+  purpose: string
+): void {
+  const missingScopes = requiredScopes.filter(
+    (scope) => !claims.scopes.has(scope)
+  );
+  if (missingScopes.length > 0) {
+    throw new Error(
+      `Browser token for ${claims.audience} is missing ${purpose} scope: ${missingScopes.join(
+        ", "
+      )}.`
+    );
+  }
+}
+
+function assertLiveViewToken(claims: BrowserTokenClaims): void {
+  assertTokenScopes(
+    claims,
+    claims.audience === REGIONAL_PROXY_AUDIENCE
+      ? [REGIONAL_PROXY_LIVE_SCOPE]
+      : [SESSION_PROXY_LIVE_SCOPE],
+    "live view"
+  );
+}
+
+function assertComputerActionToken(claims: BrowserTokenClaims): void {
+  assertTokenScopes(
+    claims,
+    claims.audience === REGIONAL_PROXY_AUDIENCE
+      ? [REGIONAL_PROXY_COMPUTER_ACTION_SCOPE]
+      : [SESSION_PROXY_COMPUTER_ACTION_SCOPE],
+    "computer action"
+  );
+}
+
+function assertCompatibleTokenClaims(
+  primaryClaims: BrowserTokenClaims,
+  secondaryClaims: BrowserTokenClaims,
+  context: string
+): void {
+  if (primaryClaims.audience !== secondaryClaims.audience) {
+    throw new Error(
+      `${context} token audience ${secondaryClaims.audience} does not match live view token audience ${primaryClaims.audience}.`
+    );
+  }
+
+  if (
+    primaryClaims.sessionId &&
+    secondaryClaims.sessionId &&
+    primaryClaims.sessionId !== secondaryClaims.sessionId
+  ) {
+    throw new Error(
+      `${context} token sessionId ${secondaryClaims.sessionId} does not match live view token sessionId ${primaryClaims.sessionId}.`
+    );
+  }
+}
+
+function toRegionalBrowserPath(claims: BrowserTokenClaims): string {
+  if (!claims.sessionId) {
+    throw new Error(
+      `Browser token for ${REGIONAL_PROXY_AUDIENCE} requires a sessionId claim.`
+    );
+  }
+
+  return `/browser/${encodeURIComponent(claims.sessionId)}`;
+}
+
+function toAudienceDefaultLivePath(claims: BrowserTokenClaims): string {
+  return claims.audience === REGIONAL_PROXY_AUDIENCE
+    ? `${toRegionalBrowserPath(claims)}/live`
+    : "";
+}
+
+function toBasePath(url: URL, claims: BrowserTokenClaims): string {
+  const proxiedPath = url.searchParams.get("path");
+  if (proxiedPath?.startsWith("/")) {
+    return proxiedPath.replace(/\/+$/, "");
+  }
+
+  const pathname = url.pathname.replace(/\/+$/, "");
+  if (pathname.endsWith("/vnc.html")) {
+    const vncBasePath = pathname.slice(0, -"/vnc.html".length);
+    return vncBasePath || toAudienceDefaultLivePath(claims);
+  }
+
+  return pathname === "" || pathname === "/"
+    ? toAudienceDefaultLivePath(claims)
+    : pathname;
+}
+
+function isSessionProxyLiveHost(hostname: string): boolean {
+  const normalizedHostname = hostname.toLowerCase();
+  return (
+    normalizedHostname === "app.hyperbrowser.ai" ||
+    (normalizedHostname.startsWith("connect-") &&
+      normalizedHostname.endsWith(".hyperbrowser.ai"))
+  );
+}
+
+function assertConnectUrlMatchesAudience(
+  connectBaseUrl: URL,
+  claims: BrowserTokenClaims
+): void {
+  if (
+    claims.audience === REGIONAL_PROXY_AUDIENCE &&
+    isSessionProxyLiveHost(connectBaseUrl.hostname)
+  ) {
+    throw new Error(
+      `Browser token audience "${REGIONAL_PROXY_AUDIENCE}" cannot be used with session-proxy live host ${connectBaseUrl.host}.`
+    );
+  }
+
+  const basePath = toBasePath(connectBaseUrl, claims);
+  if (
+    claims.audience === SESSION_PROXY_AUDIENCE &&
+    basePath === "/live"
+  ) {
+    throw new Error(
+      "connectUrl must be the session proxy transport base, not the frontend liveUrl. Pass session.liveDomain as connectUrl for standard browser sessions."
+    );
+  }
+
+  if (
+    claims.audience === SESSION_PROXY_AUDIENCE &&
+    basePath.startsWith("/browser/")
+  ) {
+    throw new Error(
+      `Browser token audience "${SESSION_PROXY_AUDIENCE}" cannot be used with regional live path ${basePath}.`
+    );
+  }
+}
+
+function toWebSocketBaseUrl(url: URL, claims: BrowserTokenClaims): string {
   const protocol =
     url.protocol === "https:" || url.protocol === "wss:" ? "wss:" : "ws:";
-  return `${protocol}//${url.host}`;
+  return `${protocol}//${url.host}${toBasePath(url, claims)}`;
+}
+
+function toHttpBaseUrl(url: URL, claims: BrowserTokenClaims): string {
+  const protocol =
+    url.protocol === "wss:"
+      ? "https:"
+      : url.protocol === "ws:"
+      ? "http:"
+      : url.protocol;
+  return `${protocol}//${url.host}${toBasePath(url, claims)}`;
 }
 
 function toHttpOrigin(url: URL): string {
@@ -79,6 +378,126 @@ function toHttpOrigin(url: URL): string {
       ? "http:"
       : url.protocol;
   return `${protocol}//${url.host}`;
+}
+
+function trimOptionalValue(value: string | undefined): string | null {
+  const trimmedValue = value?.trim() ?? "";
+  return trimmedValue ? trimmedValue : null;
+}
+
+function resolveVncConnectionInput(input: VncConnectionInput): {
+  token: string;
+  connectBaseUrl: URL;
+  claims: BrowserTokenClaims;
+} {
+  const token = trimOptionalValue(input.token);
+  if (!token) {
+    throw new Error("Expected token to be a non-empty string.");
+  }
+
+  const claims = parseBrowserTokenClaims(token);
+  assertLiveViewToken(claims);
+
+  const connectUrl = trimOptionalValue(input.connectUrl);
+  if (!connectUrl) {
+    throw new Error("Expected connectUrl to be a non-empty string.");
+  }
+
+  const connectBaseUrl = normalizeToUrl(
+    connectUrl,
+    "connectUrl"
+  );
+  assertConnectUrlMatchesAudience(connectBaseUrl, claims);
+
+  return { token, connectBaseUrl, claims };
+}
+
+function appendTokenToUrl(url: URL, token: string): string {
+  url.searchParams.set("token", token);
+  return url.toString();
+}
+
+function buildRegionalComputerActionUrl(
+  token: string,
+  connectBaseUrl: URL,
+  claims: BrowserTokenClaims
+): string {
+  const params = new URLSearchParams({ token });
+  return `${toHttpOrigin(connectBaseUrl)}${toRegionalBrowserPath(
+    claims
+  )}/computer-action?${params.toString()}`;
+}
+
+function buildSessionProxyComputerActionUrl(
+  token: string,
+  connectBaseUrl: URL,
+  claims: BrowserTokenClaims
+): string {
+  const params = new URLSearchParams({ token });
+  return `${toHttpBaseUrl(connectBaseUrl, claims)}/computer-action?${params.toString()}`;
+}
+
+function buildRegionalVncWebSocketUrl(
+  token: string,
+  connectBaseUrl: URL,
+  claims: BrowserTokenClaims
+): string {
+  const webSocketUrl = new URL(`${toWebSocketBaseUrl(connectBaseUrl, claims)}/`);
+  webSocketUrl.searchParams.set("token", token);
+  return webSocketUrl.toString();
+}
+
+function buildSessionProxyVncWebSocketUrl(
+  token: string,
+  connectBaseUrl: URL,
+  claims: BrowserTokenClaims,
+  vncPassword: string
+): string {
+  const liveDomain = `${connectBaseUrl.protocol}//${connectBaseUrl.host}`;
+  const params = new URLSearchParams({
+    autoconnect: "true",
+    password: vncPassword,
+    resize: "scale",
+    scaling: "local",
+    token,
+    liveDomain,
+  });
+
+  return `${toWebSocketBaseUrl(connectBaseUrl, claims)}/websockify?${params.toString()}`;
+}
+
+function buildVncClientConfig(audience: TokenAudience): VncClientConfig {
+  return {
+    autoConnect: true,
+    clipViewport: false,
+    dragViewport: false,
+    resizeSession: audience === SESSION_PROXY_AUDIENCE,
+    scaleViewport: true,
+  };
+}
+
+function buildVncConnection(
+  input: VncConnectionInput,
+  vncPassword: string
+): {
+  clientConfig: VncClientConfig;
+  webSocketUrl: string;
+} {
+  const { token, connectBaseUrl, claims } = resolveVncConnectionInput(input);
+  const webSocketUrl =
+    claims.audience === REGIONAL_PROXY_AUDIENCE
+      ? buildRegionalVncWebSocketUrl(token, connectBaseUrl, claims)
+      : buildSessionProxyVncWebSocketUrl(
+          token,
+          connectBaseUrl,
+          claims,
+          vncPassword
+        );
+
+  return {
+    clientConfig: buildVncClientConfig(claims.audience),
+    webSocketUrl,
+  };
 }
 
 function toCssLength(size: number | string): string {
@@ -100,45 +519,59 @@ function isShortcutMatch(
 }
 
 function buildVncWebSocketUrl(
-  token: string,
-  connectUrl: string,
+  tokenOrInput: string | VncConnectionInput,
+  connectUrl?: string,
   vncPassword: string = DEFAULT_VNC_PASSWORD
 ): string {
-  const trimmedToken = token.trim();
-  if (!trimmedToken) {
-    throw new Error("Expected token to be a non-empty string.");
-  }
-
-  const connectBaseUrl = normalizeToUrl(connectUrl);
-  const liveDomain = `${connectBaseUrl.protocol}//${connectBaseUrl.host}`;
-  const wsOrigin = toWebSocketOrigin(connectBaseUrl);
-  const params = new URLSearchParams({
-    autoconnect: "true",
-    password: vncPassword,
-    resize: "scale",
-    scaling: "local",
-    token: trimmedToken,
-    liveDomain,
-  });
-
-  return `${wsOrigin}/websockify?${params.toString()}`;
+  return buildVncConnection(
+    typeof tokenOrInput === "string"
+      ? { token: tokenOrInput, connectUrl }
+      : tokenOrInput,
+    vncPassword
+  ).webSocketUrl;
 }
 
-function buildComputerActionUrl(token: string, connectUrl: string): string {
-  const trimmedToken = token.trim();
-  if (!trimmedToken) {
-    throw new Error("Expected token to be a non-empty string.");
+function buildComputerActionUrl(
+  tokenOrInput: string | ComputerActionConnectionInput,
+  connectUrl?: string,
+  computerActionEndpoint?: string
+): string {
+  const input =
+    typeof tokenOrInput === "string"
+      ? { token: tokenOrInput, connectUrl, computerActionEndpoint }
+      : tokenOrInput;
+  const { token, connectBaseUrl, claims } = resolveVncConnectionInput(input);
+
+  if (input.computerActionEndpoint) {
+    const actionUrl = normalizeToUrl(
+      input.computerActionEndpoint,
+      "computerActionEndpoint",
+      new Set(["http:", "https:"])
+    );
+    const endpointToken = trimOptionalValue(
+      actionUrl.searchParams.get("token") ?? undefined
+    );
+    if (endpointToken) {
+      const endpointClaims = parseBrowserTokenClaims(endpointToken);
+      assertComputerActionToken(endpointClaims);
+      assertCompatibleTokenClaims(claims, endpointClaims, "Computer action");
+      return actionUrl.toString();
+    }
+
+    assertComputerActionToken(claims);
+    return appendTokenToUrl(actionUrl, token);
   }
 
-  const connectBaseUrl = normalizeToUrl(connectUrl);
-  const actionOrigin = toHttpOrigin(connectBaseUrl);
-  const params = new URLSearchParams({ token: trimmedToken });
-  return `${actionOrigin}/computer-action?${params.toString()}`;
+  assertComputerActionToken(claims);
+  return claims.audience === REGIONAL_PROXY_AUDIENCE
+    ? buildRegionalComputerActionUrl(token, connectBaseUrl, claims)
+    : buildSessionProxyComputerActionUrl(token, connectBaseUrl, claims);
 }
 
 export function HyperbrowserVncViewer({
   token,
   connectUrl,
+  computerActionEndpoint,
   disableFocusOnConnect = false,
   rewriteCmdAsCtrl = false,
   useComputerActionClipboard = false,
@@ -159,18 +592,67 @@ export function HyperbrowserVncViewer({
   const [isVncInputActive, setIsVncInputActive] = useState(false);
   const useManagedInputGuards = disableFocusOnConnect;
 
+  const syncVncLayout = useCallback(() => {
+    const rfb = vncRef.current?.rfb as InternalRfbKeyboardController | null;
+    const screen = rfb?._screen ?? null;
+    const canvas = rfb?._canvas ?? null;
+
+    if (screen) {
+      screen.style.alignItems = "center";
+      screen.style.background = "#000000";
+      screen.style.display = "flex";
+      screen.style.justifyContent = "center";
+    }
+
+    if (canvas) {
+      canvas.style.flex = "0 0 auto";
+      canvas.style.margin = "auto";
+    }
+
+    rfb?._updateClip?.();
+    rfb?._updateScale?.();
+  }, []);
+
   const connection = useMemo(() => {
     try {
+      const vncConnection = buildVncConnection(
+        { token, connectUrl },
+        vncPassword
+      );
+
       return {
-        webSocketUrl: buildVncWebSocketUrl(token, connectUrl, vncPassword),
-        computerActionUrl: buildComputerActionUrl(token, connectUrl),
+        clientConfig: vncConnection.clientConfig,
+        webSocketUrl: vncConnection.webSocketUrl,
+        computerActionUrl: useComputerActionClipboard
+          ? buildComputerActionUrl({
+              token,
+              connectUrl,
+              computerActionEndpoint,
+            })
+          : null,
         error: null as string | null,
       };
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      return { webSocketUrl: null, computerActionUrl: null, error: message };
+      return {
+        clientConfig: null,
+        webSocketUrl: null,
+        computerActionUrl: null,
+        error: message,
+      };
     }
-  }, [token, connectUrl, vncPassword]);
+  }, [
+    token,
+    connectUrl,
+    computerActionEndpoint,
+    useComputerActionClipboard,
+    vncPassword,
+  ]);
+
+  const webSocketUrl = connection.webSocketUrl;
+  const vncClientConfig = connection.clientConfig ?? buildVncClientConfig(
+    SESSION_PROXY_AUDIENCE
+  );
 
   const setNoVncKeyboardGrab = useCallback((enabled: boolean) => {
     const rfb = vncRef.current?.rfb as InternalRfbKeyboardController | null;
@@ -722,11 +1204,27 @@ export function HyperbrowserVncViewer({
     if (useManagedInputGuards) {
       disableVncInput();
     }
-  }, [disableVncInput, connection.webSocketUrl, useManagedInputGuards]);
+  }, [disableVncInput, useManagedInputGuards, webSocketUrl]);
+
+  useEffect(() => {
+    const container = vncContainerRef.current;
+    if (!container || typeof ResizeObserver === "undefined") {
+      return;
+    }
+
+    const resizeObserver = new ResizeObserver(() => {
+      window.requestAnimationFrame(syncVncLayout);
+    });
+    resizeObserver.observe(container);
+
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, [syncVncLayout, webSocketUrl]);
 
   const resolvedHeight = toCssLength(height);
 
-  if (connection.error || !connection.webSocketUrl) {
+  if (connection.error || !webSocketUrl) {
     return (
       <section className={className} style={style}>
         <div
@@ -745,8 +1243,6 @@ export function HyperbrowserVncViewer({
       </section>
     );
   }
-
-  const webSocketUrl = connection.webSocketUrl;
 
   return (
     <section
@@ -767,6 +1263,11 @@ export function HyperbrowserVncViewer({
         onTouchStartCapture={
           useManagedInputGuards ? activateVncInput : undefined
         }
+        style={{
+          width: "100%",
+          height: resolvedHeight,
+          background: "#000000",
+        }}
       >
         <VncScreen
           key={webSocketUrl}
@@ -780,26 +1281,30 @@ export function HyperbrowserVncViewer({
             },
           }}
           onConnect={() => {
+            syncVncLayout();
+            window.setTimeout(syncVncLayout, 0);
+            window.setTimeout(syncVncLayout, 120);
+
             if (useManagedInputGuards) {
               disableVncInput();
               // noVNC may claim focus shortly after connect; enforce off state.
-              window.setTimeout(() => {
-                disableVncInput();
-              }, 0);
-              window.setTimeout(() => {
-                disableVncInput();
-              }, 120);
+              window.setTimeout(disableVncInput, 0);
+              window.setTimeout(disableVncInput, 120);
             } else {
               activateVncInput();
             }
             onConnect?.();
           }}
           focusOnClick={!useManagedInputGuards}
-          scaleViewport
-          resizeSession
+          autoConnect={vncClientConfig.autoConnect}
+          clipViewport={vncClientConfig.clipViewport}
+          dragViewport={vncClientConfig.dragViewport}
+          scaleViewport={vncClientConfig.scaleViewport}
+          resizeSession={vncClientConfig.resizeSession}
           viewOnly={viewOnly}
           retryDuration={retryDuration}
-          style={{ width: "100%", height: resolvedHeight }}
+          background="#000000"
+          style={{ width: "100%", height: "100%", background: "#000000" }}
         />
       </div>
     </section>
