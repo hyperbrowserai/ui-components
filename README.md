@@ -389,6 +389,14 @@ Notes:
 - Regional-proxy websocket query parameters are treated as routing and auth
   only. VNC behavior such as autoconnect, view-only, scaling, clipping, and
   remote resize is applied through the wrapped VNC client props.
+- After the RFB connection is established, the component sends a bounded set of
+  non-incremental full-frame framebuffer requests. This helps recover live views
+  where the websocket is connected but the first visible frame is delayed. It
+  also sends at most two additional full-frame requests if inbound websocket
+  messages stall after connect.
+- `onConnect` confirms that the RFB handshake completed; it does not guarantee
+  that useful pixels have painted. Applications with a first-frame visibility
+  target should keep their canvas health telemetry and bounded reconnect policy.
 - `computerActionEndpoint` is optional. If provided, it is used for clipboard
   computer actions. If it includes its own `token` query parameter, that token
   must be scoped for computer actions. If it does not include a token, the live
