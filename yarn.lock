@@ -290,9 +290,9 @@ react-dom@^18.3.1:
     loose-envify "^1.1.0"
     scheduler "^0.23.2"
 
-react-vnc@^3.2.0:
+react-vnc@3.2.0:
   version "3.2.0"
-  resolved "https://registry.npmjs.org/react-vnc/-/react-vnc-3.2.0.tgz"
+  resolved "https://registry.yarnpkg.com/react-vnc/-/react-vnc-3.2.0.tgz#c4b468e068b769bb4e4f18a06fe688643ee3b919"
   integrity sha512-PnlcleDjVI7gUKaSX5+94MMadxee8avAJP10vlHvT2JBLVd2vEGdyWcs3KQ/9STK7mj/Ht6gFQpwEc3BYh/4GQ==
   dependencies:
     "@novnc/novnc" "^1.5.0"

@@ -7,6 +7,11 @@ import {
   type CSSProperties,
 } from "react";
 import { VncScreen, type VncScreenHandle } from "react-vnc";
+import {
+  createFramebufferRefreshRecovery,
+  type FramebufferRefreshRecovery,
+  type InternalRfbFramebufferController,
+} from "./vnc-framebuffer-recovery";
 
 const DEFAULT_VNC_PASSWORD = "vncpassword";
 const DEFAULT_USERNAME = "admin";
@@ -587,6 +592,8 @@ export function HyperbrowserVncViewer({
 }: HyperbrowserVncViewerProps) {
   const vncRef = useRef<VncScreenHandle | null>(null);
   const vncContainerRef = useRef<HTMLDivElement | null>(null);
+  const framebufferRefreshRecoveryRef =
+    useRef<FramebufferRefreshRecovery | null>(null);
   const rewrittenKeyCodesRef = useRef(new Set<string>());
   const rewrittenPressedKeysRef = useRef(new Map<string, RewrittenKeyState>());
   const [isVncInputActive, setIsVncInputActive] = useState(false);
@@ -611,6 +618,22 @@ export function HyperbrowserVncViewer({
 
     rfb?._updateClip?.();
     rfb?._updateScale?.();
+  }, []);
+
+  const clearFramebufferRefreshRecovery = useCallback(() => {
+    framebufferRefreshRecoveryRef.current?.stop();
+  }, []);
+
+  const startFramebufferRefreshRecovery = useCallback(() => {
+    if (!framebufferRefreshRecoveryRef.current) {
+      framebufferRefreshRecoveryRef.current = createFramebufferRefreshRecovery(
+        () =>
+          (vncRef.current?.rfb as InternalRfbFramebufferController | null) ??
+          null
+      );
+    }
+
+    framebufferRefreshRecoveryRef.current.start();
   }, []);
 
   const connection = useMemo(() => {
@@ -1206,6 +1229,11 @@ export function HyperbrowserVncViewer({
     }
   }, [disableVncInput, useManagedInputGuards, webSocketUrl]);
 
+  useEffect(() => clearFramebufferRefreshRecovery, [
+    clearFramebufferRefreshRecovery,
+    webSocketUrl,
+  ]);
+
   useEffect(() => {
     const container = vncContainerRef.current;
     if (!container || typeof ResizeObserver === "undefined") {
@@ -1284,6 +1312,7 @@ export function HyperbrowserVncViewer({
             syncVncLayout();
             window.setTimeout(syncVncLayout, 0);
             window.setTimeout(syncVncLayout, 120);
+            startFramebufferRefreshRecovery();
 
             if (useManagedInputGuards) {
               disableVncInput();
